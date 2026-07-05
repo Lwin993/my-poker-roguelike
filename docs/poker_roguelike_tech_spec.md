@@ -1,6 +1,8 @@
-# 轻量级小丑牌 Roguelike 游戏——前后端整合技术方案
+# 轻量级小丑牌 Roguelike 游戏——后端技术方案（Demo 版）
 
-> 版本：v1.0 | 日期：2026-06-30 | 状态：初稿
+> 版本：v1.1 | 日期：2026-07-05 | 状态：Demo 阶段 | 定位：后端接口开发
+>
+> **变更说明**：v1.1 基于 v1.0 初稿，面向 Demo 阶段简化存储方案：MySQL → SQLite，Redis → 进程内内存缓存。移除前端章节，聚焦后端开发。新增第8章开发流程规范。
 
 ---
 
@@ -11,13 +13,7 @@
 ```mermaid
 graph TB
     subgraph 用户侧
-        Browser[浏览器 / App WebView]
-        subgraph 宿主H5壳
-            JS[glue.js 胶水层<br/>广告SDK / 分享API / 登录态]
-            Godot[Godot 4 Web Export<br/>WASM + WebGL2]
-        end
-        JS -- JavaScriptBridge --> Godot
-        Godot -- eval/callback --> JS
+        Client[Client<br/>游戏客户端]
     end
 
     subgraph 服务端
@@ -35,922 +31,81 @@ graph TB
             ScoreVerify[ScoreVerifyService<br/>反作弊校验]
         end
         subgraph 存储
-            MySQL[(MySQL 8.0<br/>局记录/出牌日志/奖品)]
-            Redis[(Redis 7<br/>排行榜ZSet/库存/缓存)]
+            SQLite[(SQLite<br/>单文件数据库<br/>局记录/出牌日志/奖品)]
+            InMem[In-Memory Cache<br/>ConcurrentHashMap/AtomicInteger<br/>排行榜/库存/Token缓存]
         end
     end
 
-    Browser -- HTTPS --> Gateway
+    Client -- HTTPS --> Gateway
     GameAPI --> HandEval
     GameAPI --> ScoreCalc
     GameAPI --> ScoreVerify
-    ScoreVerify --> MySQL
-    GameAPI --> Redis
-    ShopAPI --> Redis
-    RankAPI --> Redis
-    RewardAPI --> MySQL
-    RewardAPI --> Redis
-    AdCallback --> MySQL
+    ScoreVerify --> SQLite
+    GameAPI --> InMem
+    ShopAPI --> InMem
+    RankAPI --> InMem
+    RewardAPI --> SQLite
+    RewardAPI --> InMem
+    AdCallback --> SQLite
 ```
 
 ### 0.2 技术选型总表
 
 | 层 | 技术 | 版本 | 说明 |
 |---|---|---|---|
-| 游戏引擎 | Godot | 4.3+ | GL Compatibility 模式，Web Export |
-| 渲染 | WebGL2 | - | Compatibility 模式，移动端兼容性好 |
-| 游戏脚本 | GDScript | 2.0 | Godot 原生，开发效率高 |
-| 宿主壳 | HTML5 + JS | ES2020+ | 嵌入广告SDK/分享/登录 |
-| 前后端通信 | JavaScriptBridge + HTTP | - | Godot↔JS 双向，JS↔后端 HTTP |
+| 游戏引擎 | Godot | 4.3+ | GL Compatibility 模式，Web Export（前端独立开发） |
+| 前后端通信 | HTTP REST | - | JSON 请求/响应，前后端解耦 |
 | 后端框架 | Spring Boot | 3.2.x | Java 17+ |
 | ORM | MyBatis-Plus | 3.5.7 | 单表 CRUD 自动化 |
-| 关系库 | MySQL | 8.0 | 局记录/日志/奖品 |
-| 缓存 | Redis | 7.x | ZSet 排行榜 / 库存扣减 / 配置缓存 |
+| 关系库 | **SQLite** | 3.x | 单文件嵌入式数据库，Demo 阶段零运维 |
+| 缓存 | **In-Memory** | - | ConcurrentHashMap / AtomicInteger 替代 Redis |
 | 鉴权 | JWT | jjwt 0.12 | 无状态 Token，客户端注入 |
+
+> **Demo 简化说明**：生产环境应使用 MySQL + Redis，Demo 阶段用 SQLite + 内存缓存降低运维成本。切换时仅需改数据源配置和缓存实现，接口层无需变动。
+>
+> **SQLite 并发约束**：SQLite 单进程写入串行，WAL 模式下支持并发读。Demo 阶段为单机单进程部署，写串行可接受。`SQLiteConfig` 初始化时配置 `PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;` 以启用 WAL 和 5s 写锁等待。适用并发用户约 ~50，超出此范围建议升级 MySQL。
 
 ### 0.3 数据流概览
 
 ```mermaid
 sequenceDiagram
-    participant C as Godot Client
-    participant J as glue.js
+    participant C as Client
     participant S as Server
     
-    C->>J: JavaScriptBridge.eval("getToken")
-    J-->>C: JWT Token
     C->>S: POST /api/game/start (Token)
+    S->>S: 创建 session (SQLite) + 生成 rngSeed
     S-->>C: {sessionId, rngSeed, roundConfig}
     
     loop 每次出牌
         C->>C: 本地算分（即时反馈）
         C->>S: POST /api/game/submit_play (牌面+道具+快照)
         S->>S: 服务端重算校验
+        S->>S: 写出牌日志 (SQLite)
         S-->>C: {verifiedScore, totalScore}
     end
     
     C->>S: POST /api/game/submit_result
-    S->>S: 更新排行榜 + 奖品判定
+    S->>S: 更新排行榜 (In-Memory) + 奖品判定 (SQLite)
     S-->>C: {totalScore, rank, rewardTier}
 ```
 
 ---
 
-## 第1章 前端（Godot）详细设计
-
-### 1.1 项目结构
-
-```
-res://
-├── project.godot                  # 项目配置，Web Export 设置
-├── export_presets.cfg             # Web 导出预设
-│
-├── scenes/
-│   ├── Main.tscn                  # 根场景：场景切换管理
-│   ├── GameBoard.tscn             # 主战斗界面
-│   ├── Shop.tscn                  # 商店界面
-│   ├── ResultScreen.tscn          # 结算界面
-│   ├── Leaderboard.tscn           # 排行榜界面
-│   └── ui/
-│       ├── CardWidget.tscn        # 单张扑克牌 UI 组件
-│       ├── ItemSlot.tscn          # 道具槽 UI 组件
-│       ├── ScorePopup.tscn        # 分数飞字动画
-│       ├── JokerCard.tscn         # 小丑牌展示卡片
-│       └── ProgressBar.tscn       # 回合进度条（战斗分/门槛）
-│
-├── scripts/
-│   ├── core/
-│   │   ├── GameState.gd           # Autoload 全局状态单例
-│   │   ├── RoundManager.gd        # 轮次/回合状态机
-│   │   ├── DeckManager.gd         # 牌堆/手牌/弃牌区管理
-│   │   ├── HandEvaluator.gd       # 牌型识别
-│   │   ├── ScoreCalculator.gd     # 分数计算
-│   │   ├── ItemManager.gd         # 道具持有/使用/效果管理
-│   │   └── ConfigLoader.gd        # 远程配置加载（热更新）
-│   ├── items/
-│   │   ├── ItemEffect.gd          # 道具效果基类
-│   │   ├── ItemResource.gd        # 道具数据 Resource
-│   │   ├── jokers/
-│   │   │   ├── JokerWealthy.gd    # 暴富小丑
-│   │   │   ├── JokerChain.gd      # 连锁小丑
-│   │   │   └── JokerBoom.gd       # 爆炸小丑
-│   │   └── consumables/
-│   │       ├── LuckySpark.gd      # 幸运火花
-│   │       ├── CritPotion.gd      # 暴击药水
-│   │       ├── DoublePotion.gd    # 双倍药水
-│   │       ├── BossBurst.gd       # Boss 爆发
-│   │       ├── FrenzyPotion.gd    # 狂热药水
-│   │       ├── ExtraPlayTicket.gd # 额外出牌券
-│   │       ├── FinalPlayTicket.gd # 终局出牌券
-│   │       ├── ExtraDiscard.gd    # 额外换牌券
-│   │       ├── RefreshTicket.gd   # 刷新券
-│   │       ├── LuckyCompass.gd    # 幸运罗盘
-│   │       ├── QuintCrit.gd       # 五连暴击（稀有）
-│   │       └── RemainBoost.gd     # 余牌加持（稀有）
-│   ├── ui/
-│   │   ├── GameBoardUI.gd         # 战斗界面交互
-│   │   ├── ShopUI.gd              # 商店界面交互
-│   │   ├── ResultUI.gd            # 结算界面
-│   │   └── CardDragDrop.gd        # 手牌拖拽/选择交互
-│   └── net/
-│       ├── GameAPI.gd             # HTTP 请求封装
-│       └── JSBridge.gd            # JavaScriptBridge 封装
-│
-├── resources/
-│   ├── items/                     # ItemResource .tres 文件
-│   │   ├── joker_wealthy.tres
-│   │   ├── joker_chain.tres
-│   │   ├── joker_boom.tres
-│   │   ├── lucky_spark.tres
-│   │   └── ...
-│   ├── round_configs/             # 回合门槛配置 .tres
-│   │   └── default.tres
-│   └── card_textures/             # 扑克牌面素材
-│       ├── hearts/
-│       ├── diamonds/
-│       ├── clubs/
-│       └── spades/
-│
-└── export/
-    └── web/                       # Godot Web Export 输出
-        ├── index.html
-        ├── poker.game.wasm
-        ├── poker.game.wasm.gz
-        ├── poker.pck
-        └── poker.pck.gz
-```
-
-### 1.2 牌堆系统（DeckManager）
-
-#### 1.2.1 数据模型
-
-```gdscript
-# DeckManager.gd
-class_name DeckManager
-extends Node
-
-class Card:
-    var rank: int   # 1=A, 2-10, 11=J, 12=Q, 13=K
-    var suit: int   # 0=♠ 1=♥ 2=♦ 3=♣
-    
-    func serialize() -> Dictionary:
-        return {"r": rank, "s": suit}
-    
-    static func deserialize(d: Dictionary) -> Card:
-        var c = Card.new()
-        c.rank = d.r
-        c.suit = d.s
-        return c
-    
-    func _to_string() -> String:
-        const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
-        const SUITS = ["♠", "♥", "♦", "♣"]
-        return RANKS[rank] + SUITS[suit]
-
-const HAND_LIMIT = 8
-const DECK_SIZE = 52
-
-var deck: Array            = []   # 牌堆（待抽）
-var hand: Array            = []   # 当前手牌
-var discard_pile: Array    = []   # 弃牌区
-```
-
-#### 1.2.2 初始化与洗牌
-
-```gdscript
-func reset():
-    deck.clear()
-    hand.clear()
-    discard_pile.clear()
-    _init_standard_deck()
-    _shuffle()
-
-func _init_standard_deck():
-    for suit in range(4):
-        for rank in range(1, 14):
-            deck.append(Card.new(rank, suit))
-
-# Fisher-Yates 洗牌，O(n) 无偏
-func _shuffle():
-    var n = deck.size()
-    for i in range(n - 1, 0, -1):
-        var j = randi_range(0, i)
-        var tmp = deck[i]
-        deck[i] = deck[j]
-        deck[j] = tmp
-
-# 补手牌到上限
-func draw_to_hand_limit():
-    while hand.size() < HAND_LIMIT and deck.size() > 0:
-        hand.append(deck.pop_back())
-    # 牌堆耗尽：洗回弃牌区
-    if deck.size() == 0 and discard_pile.size() > 0:
-        deck = discard_pile.duplicate()
-        discard_pile.clear()
-        _shuffle()
-        while hand.size() < HAND_LIMIT and deck.size() > 0:
-            hand.append(deck.pop_back())
-```
-
-#### 1.2.3 出牌与换牌
-
-```gdscript
-# 出牌：从手牌移走选中的5张，放入弃牌区，补牌
-func play_cards(selected_indices: Array) -> Array:
-    assert(selected_indices.size() == 5, "必须选5张出牌")
-    
-    var sorted_idx = selected_indices.duplicate()
-    sorted_idx.sort_custom(func(a, b): return a > b)
-    
-    var played: Array = []
-    for idx in sorted_idx:
-        played.append(hand[idx])
-        hand.remove_at(idx)
-    
-    discard_pile.append_array(played)
-    draw_to_hand_limit()
-    return played
-
-# 换牌：从手牌移走选中的牌，弃掉，补新牌
-func discard_and_draw(selected_indices: Array) -> void:
-    var sorted_idx = selected_indices.duplicate()
-    sorted_idx.sort_custom(func(a, b): return a > b)
-    
-    for idx in sorted_idx:
-        discard_pile.append(hand[idx])
-        hand.remove_at(idx)
-    
-    draw_to_hand_limit()
-```
-
-### 1.3 牌型识别（HandEvaluator）
-
-```gdscript
-# HandEvaluator.gd
-class_name HandEvaluator
-
-enum HandRank {
-    HIGH_CARD,       # 高牌    基础分 50
-    ONE_PAIR,        # 一对    基础分 100
-    TWO_PAIR,        # 两对    基础分 180
-    THREE_OF_KIND,   # 三条    基础分 300
-    STRAIGHT,        # 顺子    基础分 450
-    FLUSH,           # 同花    基础分 600
-    FULL_HOUSE,      # 葫芦    基础分 900
-    FOUR_OF_KIND,    # 四条    基础分 1500
-    STRAIGHT_FLUSH   # 同花顺  基础分 2500
-}
-
-const BASE_SCORES: Dictionary = {
-    HandRank.HIGH_CARD:      50,
-    HandRank.ONE_PAIR:       100,
-    HandRank.TWO_PAIR:       180,
-    HandRank.THREE_OF_KIND:  300,
-    HandRank.STRAIGHT:       450,
-    HandRank.FLUSH:          600,
-    HandRank.FULL_HOUSE:     900,
-    HandRank.FOUR_OF_KIND:   1500,
-    HandRank.STRAIGHT_FLUSH: 2500,
-}
-
-static func evaluate(cards: Array) -> Dictionary:
-    assert(cards.size() == 5, "出牌必须选 5 张")
-    
-    var ranks = []
-    var suits = []
-    for c in cards:
-        ranks.append(c.rank)
-        suits.append(c.suit)
-    ranks.sort()
-    
-    var is_flush    = suits.count(suits[0]) == 5
-    var is_straight = _check_straight(ranks)
-    var count_map   = _count_ranks(ranks)
-    var counts      = count_map.values()
-    counts.sort()
-    
-    var hand_rank: HandRank
-    if   is_flush and is_straight:           hand_rank = HandRank.STRAIGHT_FLUSH
-    elif counts == [1, 4]:                   hand_rank = HandRank.FOUR_OF_KIND
-    elif counts == [2, 3]:                   hand_rank = HandRank.FULL_HOUSE
-    elif is_flush:                            hand_rank = HandRank.FLUSH
-    elif is_straight:                         hand_rank = HandRank.STRAIGHT
-    elif counts == [1, 1, 3]:                hand_rank = HandRank.THREE_OF_KIND
-    elif counts == [1, 2, 2]:                hand_rank = HandRank.TWO_PAIR
-    elif counts == [1, 1, 1, 2]:             hand_rank = HandRank.ONE_PAIR
-    else:                                     hand_rank = HandRank.HIGH_CARD
-    
-    return {
-        "rank": hand_rank,
-        "base_score": BASE_SCORES[hand_rank],
-    }
-
-static func _check_straight(sorted_ranks: Array) -> bool:
-    if sorted_ranks == [1, 2, 3, 4, 5]: return true
-    if sorted_ranks == [1, 10, 11, 12, 13]: return true
-    for i in range(1, sorted_ranks.size()):
-        if sorted_ranks[i] - sorted_ranks[i - 1] != 1: return false
-    return true
-
-static func _count_ranks(ranks: Array) -> Dictionary:
-    var map = {}
-    for r in ranks:
-        map[r] = map.get(r, 0) + 1
-    return map
-```
-
-### 1.4 分数计算器（ScoreCalculator）
-
-```gdscript
-# ScoreCalculator.gd
-class_name ScoreCalculator
-
-static func calculate(
-    hand_result: Dictionary,
-    joker_states: Array,
-    active_consumables: Array,
-    remaining_hand: Array
-) -> Dictionary:
-    
-    var base       = float(hand_result.base_score)
-    var mult       = 1.0
-    var crit_rate  = 0.0
-    var crit_mult  = 2.0
-    var special_mult = 1.0
-    
-    # 1. 小丑牌被动修正
-    for js in joker_states:
-        var delta = js.joker.get_passive_modifiers(hand_result)
-        mult        += delta.get("mult_add", 0.0)
-        crit_rate   += delta.get("crit_rate_add", 0.0)
-        crit_mult   += delta.get("crit_mult_add", 0.0)
-        special_mult *= delta.get("special_mult", 1.0)
-    
-    # 2. 冲分道具修正
-    for item in active_consumables:
-        var delta = item.get_score_modifiers()
-        mult        *= delta.get("mult_factor", 1.0)
-        mult        += delta.get("mult_add", 0.0)
-        crit_rate   += delta.get("crit_rate_add", 0.0)
-        crit_mult   += delta.get("crit_mult_add", 0.0)
-    
-    # 3. 余牌加持（稀有道具）
-    var has_remain_boost = active_consumables.any(
-        func(i): return i.resource.id == "remaining_boost"
-    )
-    if has_remain_boost and remaining_hand.size() > 0:
-        var max_rank = 0
-        for c in remaining_hand:
-            if c.rank > max_rank: max_rank = c.rank
-        var effective = max_rank
-        if max_rank == 1: effective = 14  # A 当最高
-        mult += float(effective)
-    
-    # 4. 暴击判断
-    var is_crit = randf() < clampf(crit_rate, 0.0, 1.0)
-    
-    # 5. 最终分
-    var score = base * mult
-    if is_crit: score *= crit_mult
-    score *= special_mult
-    
-    return {
-        "score": int(score),
-        "is_crit": is_crit,
-        "mult": mult,
-        "crit_mult": crit_mult if is_crit else 1.0,
-        "special_mult": special_mult,
-        "snapshot": {
-            "hand_rank": hand_result.rank,
-            "base_score": hand_result.base_score,
-            "mult": snapped(mult, 0.0001),
-            "is_crit": is_crit,
-            "crit_mult": snapped(crit_mult, 0.0001),
-            "special_mult": snapped(special_mult, 0.0001),
-        }
-    }
-
-static func snapped(v: float, step: float) -> float:
-    return snapped(v, step)
-```
-
-### 1.5 回合状态机（RoundManager）
-
-```gdscript
-# RoundManager.gd (Autoload)
-class_name RoundManager
-extends Node
-
-enum Phase {
-    ROUND_START,
-    PLAYING,
-    SHOP,
-    ROUND_END,
-    GAME_OVER,
-    FINAL_RESULT
-}
-
-signal phase_changed(new_phase: Phase)
-signal score_updated(round_score: int, total_score: int)
-signal round_failed(round_idx: int, blind_idx: int)
-
-const BLIND_NAMES = ["小盲", "大盲", "Boss"]
-
-var current_round: int  = 0
-var current_blind: int  = 0
-var plays_left:    int  = 4
-var discards_left: int  = 4
-var round_score:   int  = 0
-var total_score:   int  = 0
-var revive_count:  int  = 0
-var game_coins:    int  = 0
-var play_log:      Array = []
-
-# 门槛表（从远程配置加载）
-var thresholds: Array = [
-    [[300, 800, 1500],
-     [1500, 3000, 5000],
-     [3500, 6000, 10000]]
-]
-
-# 游戏积分奖励表
-var coin_rewards: Array = [
-    [[30, 50, 80],
-     [50, 80, 120],
-     [80, 120, 180]]
-]
-
-func start_new_game():
-    current_round = 0
-    current_blind = 0
-    plays_left    = 4
-    discards_left = 4
-    round_score   = 0
-    total_score   = 0
-    revive_count  = 0
-    game_coins    = 0
-    play_log.clear()
-    DeckManager.reset()
-    ItemManager.reset()
-    phase_changed.emit(Phase.ROUND_START)
-
-func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Dictionary:
-    assert(plays_left > 0)
-    
-    var played_cards = DeckManager.play_cards(selected_indices)
-    var remaining    = DeckManager.hand
-    
-    var hand_result = HandEvaluator.evaluate(played_cards)
-    var active_items = active_consumable_ids.map(
-        func(id): return ItemManager.get_consumable_by_id(id)
-    )
-    
-    var score_result = ScoreCalculator.calculate(
-        hand_result,
-        ItemManager.get_active_joker_states(),
-        active_items,
-        remaining
-    )
-    
-    var gained = score_result.score
-    round_score += gained
-    total_score += gained
-    plays_left  -= 1
-    
-    for id in active_consumable_ids:
-        ItemManager.consume_item(id)
-    
-    play_log.append({
-        "round": current_round,
-        "blind": current_blind,
-        "play_idx": 4 - plays_left - 1,
-        "cards": played_cards.map(func(c): return c.serialize()),
-        "consumables": active_consumable_ids,
-        "snapshot": score_result.snapshot,
-        "claimed": gained
-    })
-    
-    score_updated.emit(round_score, total_score)
-    
-    var threshold = thresholds[current_round][current_blind]
-    if round_score >= threshold:
-        _on_blind_cleared()
-    elif plays_left == 0:
-        round_failed.emit(current_round, current_blind)
-    
-    return score_result
-
-func discard_cards(selected_indices: Array) -> bool:
-    if discards_left <= 0: return false
-    DeckManager.discard_and_draw(selected_indices)
-    discards_left -= 1
-    return true
-
-func _on_blind_cleared():
-    game_coins += coin_rewards[current_round][current_blind]
-    
-    if current_blind == 2:
-        if current_round == 2:
-            phase_changed.emit(Phase.FINAL_RESULT)
-        else:
-            current_round += 1
-            current_blind  = 0
-            _reset_blind()
-            phase_changed.emit(Phase.ROUND_START)
-    else:
-        phase_changed.emit(Phase.SHOP)
-
-func _reset_blind():
-    round_score   = 0
-    plays_left    = 4
-    discards_left = 4
-    DeckManager.reset()
-
-func revive():
-    revive_count += 1
-    _reset_blind()
-    phase_changed.emit(Phase.PLAYING)
-```
-
-### 1.6 道具系统（ItemManager）
-
-#### 1.6.1 ItemResource 数据定义
-
-```gdscript
-# ItemResource.gd
-class_name ItemResource
-extends Resource
-
-@export var id:            String
-@export var display_name:  String
-@export var description:   String
-@export var icon:          Texture2D
-@export var price:         int
-@export var rarity:        int        # 0=普通 1=稀有
-@export var item_type:     int        # 0=小丑牌 1=冲分道具
-@export var shop_weight:   float
-@export var effect_class:  String
-```
-
-#### 1.6.2 ItemEffect 基类
-
-```gdscript
-# ItemEffect.gd
-class_name ItemEffect
-
-var resource: ItemResource
-
-func _init(res: ItemResource = null):
-    resource = res
-
-func get_passive_modifiers(_hand_result: Dictionary) -> Dictionary:
-    return {}
-
-func get_score_modifiers() -> Dictionary:
-    return {}
-
-func is_round_wide() -> bool:
-    return false
-
-func is_consumed() -> bool:
-    return false
-```
-
-#### 1.6.3 小丑牌实现
-
-```gdscript
-# JokerWealthy.gd — 暴富小丑
-class_name JokerWealthy
-extends ItemEffect
-
-var level: int = 1
-
-# Level 1: 暴击率+10%, 暴击倍率+0.5
-# Level 2: 暴击率+18%, 暴击倍率+1.0
-# Level 3: 暴击率+25%, 暴击倍率+1.5
-func get_passive_modifiers(_hand_result: Dictionary) -> Dictionary:
-    match level:
-        1: return {"crit_rate_add": 0.10, "crit_mult_add": 0.5}
-        2: return {"crit_rate_add": 0.18, "crit_mult_add": 1.0}
-        3: return {"crit_rate_add": 0.25, "crit_mult_add": 1.5}
-    return {}
-
-func get_upgrade_cost() -> int:
-    match level:
-        1: return 40
-        2: return 80
-        _: return -1
-```
-
-```gdscript
-# JokerChain.gd — 连锁小丑
-class_name JokerChain
-extends ItemEffect
-
-var level: int = 1
-var _consecutive: int = 0
-var _last_hand_rank: int = -1
-
-# Level 1: 连续同牌型每次+0.15倍率
-# Level 2: 连续同牌型每次+0.25倍率
-# Level 3: 连续同牌型每次+0.40倍率
-func get_passive_modifiers(hand_result: Dictionary) -> Dictionary:
-    var rank = hand_result.rank
-    if rank == _last_hand_rank:
-        _consecutive += 1
-    else:
-        _consecutive = 1
-    _last_hand_rank = rank
-    
-    var bonus: float
-    match level:
-        1: bonus = 0.15 * _consecutive
-        2: bonus = 0.25 * _consecutive
-        3: bonus = 0.40 * _consecutive
-        _: bonus = 0.0
-    return {"mult_add": bonus}
-
-func get_upgrade_cost() -> int:
-    match level:
-        1: return 50
-        2: return 100
-        _: return -1
-```
-
-```gdscript
-# JokerBoom.gd — 爆炸小丑
-class_name JokerBoom
-extends ItemEffect
-
-var level: int = 1
-
-# Level 1: 3%概率战斗分×10
-# Level 2: 5%概率战斗分×15
-# Level 3: 8%概率战斗分×20
-func get_passive_modifiers(_hand_result: Dictionary) -> Dictionary:
-    var prob: float
-    var mult: float
-    match level:
-        1: prob = 0.03; mult = 10.0
-        2: prob = 0.05; mult = 15.0
-        3: prob = 0.08; mult = 20.0
-        _: prob = 0.0; mult = 1.0
-    if randf() < prob:
-        return {"special_mult": mult}
-    return {"special_mult": 1.0}
-
-func get_upgrade_cost() -> int:
-    match level:
-        1: return 60
-        2: return 120
-        _: return -1
-```
-
-#### 1.6.4 冲分道具示例
-
-```gdscript
-# LuckySpark.gd — 幸运火花
-class_name LuckySpark
-extends ItemEffect
-func get_score_modifiers() -> Dictionary:
-    return {"crit_rate_add": 0.20}
-func is_consumed() -> bool:
-    return true
-
-# DoublePotion.gd — 双倍药水
-class_name DoublePotion
-extends ItemEffect
-func get_score_modifiers() -> Dictionary:
-    return {"mult_factor": 2.0}
-func is_consumed() -> bool:
-    return true
-
-# QuintCrit.gd — 五连暴击（稀有，整回合生效）
-class_name QuintCrit
-extends ItemEffect
-func get_score_modifiers() -> Dictionary:
-    return {"crit_rate_add": 1.0}
-func is_round_wide() -> bool:
-    return true
-func is_consumed() -> bool:
-    return false  # 由 ItemManager 回合结束时标记
-```
-
-#### 1.6.5 ItemManager 管理器
-
-```gdscript
-# ItemManager.gd (Autoload)
-class_name ItemManager
-extends Node
-
-var jokers: Array = []
-var consumables: Array = []
-
-func reset():
-    jokers.clear()
-    consumables.clear()
-
-func buy_item(item_res: ItemResource) -> bool:
-    if RoundManager.game_coins < item_res.price: return false
-    RoundManager.game_coins -= item_res.price
-    var effect = _create_effect(item_res)
-    if item_res.item_type == 0:
-        jokers.append(effect)
-    else:
-        consumables.append(effect)
-    return true
-
-func get_active_joker_states() -> Array:
-    return jokers
-
-func get_consumable_by_id(id: String) -> ItemEffect:
-    for item in consumables:
-        if item.resource.id == id: return item
-    return null
-
-func consume_item(id: String):
-    for i in range(consumables.size() - 1, -1, -1):
-        if consumables[i].resource.id == id and consumables[i].is_consumed():
-            consumables.remove_at(i)
-            return
-
-func on_round_end():
-    for i in range(consumables.size() - 1, -1, -1):
-        if consumables[i].is_round_wide():
-            consumables.remove_at(i)
-
-func upgrade_joker(joker: ItemEffect) -> bool:
-    if joker.level >= 3: return false
-    var cost = joker.get_upgrade_cost()
-    if RoundManager.game_coins < cost: return false
-    RoundManager.game_coins -= cost
-    joker.level += 1
-    return true
-
-func _create_effect(res: ItemResource) -> ItemEffect:
-    var script = load("res://scripts/items/%s.gd" % res.effect_class)
-    var effect = script.new()
-    effect.resource = res
-    return effect
-```
-
-### 1.7 商店系统
-
-#### 1.7.1 商店权重配置表
-
-| 商品 | 基础权重 | 类型 | 稀有度 | R1小盲 | R1大盲 | R2小盲 | R2大盲 | R3小盲 | R3大盲 |
-|------|---------|------|--------|--------|--------|--------|--------|--------|--------|
-| 暴富小丑 | 30 | 小丑 | 0 | ✅30 | ✅25 | ✅20 | ✅15 | ✅10 | ✅5 |
-| 连锁小丑 | 25 | 小丑 | 0 | ✅20 | ✅25 | ✅25 | ✅20 | ✅15 | ✅10 |
-| 爆炸小丑 | 15 | 小丑 | 0 | ✅10 | ✅12 | ✅15 | ✅18 | ✅15 | ✅10 |
-| 幸运火花 | 40 | 冲分 | 0 | ✅40 | ✅35 | ✅30 | ✅25 | ✅20 | ✅15 |
-| 暴击药水 | 35 | 冲分 | 0 | ✅35 | ✅35 | ✅30 | ✅30 | ✅25 | ✅20 |
-| 双倍药水 | 30 | 冲分 | 0 | ✅30 | ✅30 | ✅30 | ✅30 | ✅30 | ✅30 |
-| Boss爆发 | 20 | 冲分 | 0 | ❌ | ✅15 | ❌ | ✅18 | ❌ | ✅20 |
-| 狂热药水 | 20 | 冲分 | 0 | ❌ | ✅10 | ✅12 | ✅15 | ✅18 | ✅20 |
-| 额外出牌券 | 25 | 冲分 | 0 | ✅20 | ✅22 | ✅25 | ✅25 | ✅25 | ✅25 |
-| 终局出牌券 | 10 | 冲分 | 0 | ❌ | ❌ | ❌ | ✅8 | ❌ | ✅10 |
-| 额外换牌券 | 30 | 冲分 | 0 | ✅25 | ✅25 | ✅25 | ✅25 | ✅25 | ✅25 |
-| 刷新券 | 35 | 冲分 | 0 | ✅30 | ✅30 | ✅30 | ✅30 | ✅30 | ✅30 |
-| 幸运罗盘 | 15 | 冲分 | 0 | ❌ | ✅10 | ✅12 | ✅15 | ✅18 | ✅20 |
-| 五连暴击 | 3 | 冲分 | 1 | ❌ | ❌ | ❌ | ✅2 | ✅3 | ✅5 |
-| 余牌加持 | 3 | 冲分 | 1 | ❌ | ❌ | ❌ | ✅2 | ✅3 | ✅5 |
-
-**幸运罗盘**：使用后下次商店刷新时所有稀有道具权重 ×10。
-**刷新券**：下次商店刷新免费。
-
-#### 1.7.2 刷新费用递增
-
-```
-刷新次数    费用
-0(首次)    0（免费）/ 刷新券
-1          5
-2          10
-3          15
-4          20
-...        5 + (n-1) × 5
-```
-
-#### 1.7.3 稀有保底
-
-连续3次商店刷新未出现稀有道具时，下次刷新第一个槽位必出稀有。
-
-### 1.8 JS Bridge 层
-
-```gdscript
-# JSBridge.gd (Autoload)
-extends Node
-
-signal revive_ad_completed
-signal revive_friend_helped
-signal token_received(token: String)
-
-func request_revive_ad():
-    if OS.has_feature("web"):
-        JavaScriptBridge.eval("window.GameBridge.showRewardedAd('revive')")
-    else:
-        revive_ad_completed.emit()  # 开发 fallback
-
-func request_share_invite():
-    if OS.has_feature("web"):
-        JavaScriptBridge.eval("window.GameBridge.shareInvite()")
-    else:
-        revive_friend_helped.emit()
-
-func get_auth_token() -> String:
-    if OS.has_feature("web"):
-        return JavaScriptBridge.eval("window.GameBridge.getToken() || ''")
-    return "dev_token"
-
-func dispatch(event: String, data_json: String):
-    var data = JSON.parse_string(data_json) if data_json else {}
-    match event:
-        "ad_complete":   revive_ad_completed.emit()
-        "ad_fail":       pass
-        "friend_helped": revive_friend_helped.emit()
-        "token_ready":   token_received.emit(data.get("token", ""))
-```
-
-```javascript
-// glue.js
-window.GameBridge = {
-    showRewardedAd(scene) {
-        if (window.KSAdSDK) {
-            KSAdSDK.showRewardedVideo({
-                scene,
-                onComplete: () => window.godotCallback('ad_complete', { scene }),
-                onFail: (err) => window.godotCallback('ad_fail', { err: String(err) })
-            });
-        }
-    },
-    shareInvite() {
-        if (window.KSShare) {
-            KSShare.invoke({
-                type: 'game_invite',
-                title: '帮我复活！小丑牌冲分中',
-                onSuccess: () => window.godotCallback('friend_helped', {})
-            });
-        }
-    },
-    getToken() {
-        return window.__GAME_TOKEN__ || '';
-    }
-};
-
-window.GodotBridge_dispatch = function(event, dataJson) {
-    if (window.Engine && typeof Engine.callMainMethod === 'function') {
-        Engine.callMainMethod('JSBridge', 'dispatch', [event, dataJson || '{}']);
-    }
-};
-```
-
-### 1.9 本地缓存与断线恢复
-
-```gdscript
-# GameState.gd (Autoload)
-class_name GameState
-extends Node
-
-const SAVE_PATH = "user://game_state.json"
-
-func save_state():
-    var state = {
-        "session_id": GameAPI.session_id,
-        "current_round": RoundManager.current_round,
-        "current_blind": RoundManager.current_blind,
-        "round_score": RoundManager.round_score,
-        "total_score": RoundManager.total_score,
-        "game_coins": RoundManager.game_coins,
-        "plays_left": RoundManager.plays_left,
-        "discards_left": RoundManager.discards_left,
-        "revive_count": RoundManager.revive_count,
-        "deck": DeckManager.deck.map(func(c): return c.serialize()),
-        "hand": DeckManager.hand.map(func(c): return c.serialize()),
-        "discard_pile": DeckManager.discard_pile.map(func(c): return c.serialize()),
-        "jokers": RoundManager.jokers.map(func(j): return {"id": j.resource.id, "level": j.level}),
-        "consumables": RoundManager.consumables.map(func(c): return c.resource.id),
-        "play_log": RoundManager.play_log,
-    }
-    var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-    file.store_string(JSON.stringify(state))
-    file.close()
-
-func load_state() -> bool:
-    if not FileAccess.file_exists(SAVE_PATH): return false
-    var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
-    var state = JSON.parse_string(file.get_as_text())
-    file.close()
-    if state == null: return false
-    _restore_from_dict(state)
-    return true
-
-func clear_save():
-    if FileAccess.file_exists(SAVE_PATH):
-        DirAccess.remove_absolute(SAVE_PATH)
-```
-
-**保存时机**：每次出牌后、进入商店后、购买道具后、复活后、应用切后台时。
-
-**断线恢复**：重新打开游戏时，优先从 localStorage 恢复。向服务端 `/api/game/start` 请求最新状态（sessionId 相同则续接），服务端对比 play_log 差异后补录。
+## 第1章 前端（Godot）—— 本文档不涉及
+
+> **说明**：本版本聚焦后端接口开发，前端（Godot 4 + GDScript）由独立团队负责。
+>
+> 前端相关设计参见 v1.0 版本文档。以下为前端与后端的关键**协议约定**，后端开发需据此实现接口：
+>
+> | 约定项 | 说明 |
+> |--------|------|
+> | 通信方式 | HTTP REST (JSON)，后续可升级 WebSocket |
+> | 鉴权 | Bearer JWT Token，请求头 `Authorization` |
+> | 牌数据序列化 | `{"r": 1, "s": 0}` → r=rank(1-13), s=suit(0-3) |
+> | 道具 ID 对齐 | 前后端使用同一套 `item_id` 字符串（如 `joker_wealthy`） |
+> | 分数快照 | 前端提交 `snapshot` 字段，后端独立校验 |
+>
+> 详细的接口协议见第2章。
 
 ---
 
@@ -1056,11 +211,12 @@ func clear_save():
 
 #### 2.2.3 POST /api/game/submit_result
 
+> 说明：每次出牌已通过 `submit_play` 实时上报并持久化到 `play_log` 表，`submit_result` 只需 `session_id` 即可，服务端从 DB 聚合计算最终分数。
+
 **请求**：
 ```json
 {
-    "session_id": 10001,
-    "final_play_log": [...]
+    "session_id": 10001
 }
 ```
 
@@ -1132,7 +288,24 @@ func clear_save():
 { "session_id": 10001 }
 ```
 
-#### 2.2.10 POST /api/ad/callback（广告平台→服务端 S2S）
+#### 2.2.10 GET /api/health
+
+健康检查接口，无需鉴权。
+
+**响应**：
+```json
+{
+    "code": 0,
+    "msg": "ok",
+    "data": {
+        "status": "UP",
+        "db": "OK",
+        "cache_entries": 42
+    }
+}
+```
+
+#### 2.2.11 POST /api/ad/callback（广告平台→服务端 S2S）
 
 ```json
 {
@@ -1146,17 +319,17 @@ func clear_save():
 }
 ```
 
-### 2.3 道具数据结构对齐（Godot ↔ Java）
+### 2.3 数据结构约定
 
-| 概念 | Godot | Java | 对齐说明 |
-|------|-------|------|---------|
-| 道具 ID | `ItemResource.id` | `ItemDTO.id` | 完全一致 |
-| 道具类型 | `ItemResource.item_type: int` | `ItemDTO.itemType: int` | 0=小丑牌 1=冲分道具 |
-| 稀有度 | `ItemResource.rarity: int` | `ItemDTO.rarity: int` | 0=普通 1=稀有 |
-| 商店权重 | `ItemResource.shop_weight` | `ItemDTO.shopWeights: float[]` | Java 下发6节点权重数组 |
-| 效果类名 | `ItemResource.effect_class` | `ItemDTO.effectClass` | Godot load 脚本 / Java 反射 |
-| 牌数据 | `Card.serialize() → {"r":1,"s":0}` | `CardDTO(rank, suit)` | r→rank，s→suit |
-| 小丑牌状态 | `{id, level}` | `JokerStateDTO(id, level)` | 完全一致 |
+| 概念 | Java 字段 | JSON 协议字段 | 说明 |
+|------|-----------|--------------|------|
+| 道具 ID | `ItemDTO.id` | `id` | 完全一致，如 `joker_wealthy` |
+| 道具类型 | `ItemDTO.itemType` | `item_type` | 0=小丑牌 1=冲分道具 |
+| 稀有度 | `ItemDTO.rarity` | `rarity` | 0=普通 1=稀有 |
+| 商店权重 | `ItemDTO.shopWeights` | `shop_weights` | 6节点权重数组 |
+| 效果类名 | `ItemDTO.effectClass` | `effect_class` | Java 反射加载 |
+| 牌数据 | `CardDTO(rank, suit)` | `{"r":1,"s":0}` | r→rank(1-13)，s→suit(0-3) |
+| 小丑牌状态 | `JokerStateDTO(id, level)` | `{id, level}` | 完全一致 |
 
 ### 2.4 错误码体系
 
@@ -1197,38 +370,38 @@ poker-roguelike-server/
 └── src/main/java/com/kuaishou/poker/
     ├── PokerApplication.java
     ├── controller/
-    │   ├── GameController.java
-    │   ├── ShopController.java
-    │   ├── RankController.java
-    │   ├── RewardController.java
-    │   └── AdCallbackController.java
+    │   ├── GameController.java          # 局管理 / 出牌提交 / 结果提交
+    │   ├── ShopController.java         # 商店查询 / 购买
+    │   ├── RankController.java         # 全服榜 / 好友榜
+    │   ├── RewardController.java       # 奖品兑换
+    │   └── AdCallbackController.java   # 广告 S2S 回调
     ├── service/
-    │   ├── GameService.java
-    │   ├── ScoreVerifyService.java
-    │   ├── ShopService.java
-    │   ├── RankService.java
-    │   ├── RewardService.java
-    │   └── AdCallbackService.java
+    │   ├── GameService.java           # 局生命周期管理
+    │   ├── ScoreVerifyService.java     # 分数校验（反作弊）
+    │   ├── ShopService.java           # 商店逻辑
+    │   ├── RankService.java           # 排行榜逻辑
+    │   ├── RewardService.java         # 奖品逻辑
+    │   └── AdCallbackService.java      # 广告回调逻辑
     ├── domain/
-    │   ├── entity/
+    │   ├── entity/                    # 数据库实体
     │   │   ├── GameSession.java
     │   │   ├── PlayLog.java
     │   │   ├── RewardTier.java
     │   │   ├── RewardClaim.java
     │   │   ├── AdCallbackLog.java
     │   │   └── GameConfig.java
-    │   ├── dto/
+    │   ├── dto/                        # 请求/响应 DTO
     │   │   ├── SubmitPlayRequest.java
     │   │   ├── StartGameResponse.java
     │   │   ├── ApiResult.java
     │   │   └── ItemDTO.java
-    │   └── enums/
+    │   └── enums/                      # 枚举常量
     │       ├── HandRank.java
     │       ├── SessionStatus.java
     │       └── ReviveType.java
-    ├── game/
-    │   ├── HandEvaluator.java
-    │   ├── ScoreCalculator.java
+    ├── game/                           # 纯游戏逻辑（无外部依赖）
+    │   ├── HandEvaluator.java          # 牌型识别
+    │   ├── ScoreCalculator.java        # 分数计算
     │   ├── model/
     │   │   ├── Card.java
     │   │   ├── HandResult.java
@@ -1237,21 +410,29 @@ poker-roguelike-server/
     │   │   └── ItemModifier.java
     │   └── registry/
     │       └── ItemModifierRegistry.java
-    ├── mapper/
+    ├── mapper/                         # MyBatis-Plus Mapper
     │   ├── GameSessionMapper.java
     │   ├── PlayLogMapper.java
     │   └── AdCallbackLogMapper.java
-    ├── infrastructure/
-    │   ├── redis/
-    │   │   ├── LeaderboardRedis.java
-    │   │   └── StockRedis.java
+    ├── infrastructure/                # 基础设施层
+    │   ├── cache/                      # 内存缓存（Demo 替代 Redis）
+    │   │   ├── InMemoryLeaderboard.java
+    │   │   ├── InMemoryTokenStore.java
+    │   │   └── InMemoryStockStore.java
     │   └── anti_cheat/
     │       └── ScoreAuditLogger.java
     └── config/
-        ├── RedisConfig.java
-        ├── SecurityConfig.java
+        ├── SQLiteConfig.java          # SQLite 数据源配置（WAL + busy_timeout）
+        ├── SecurityConfig.java        # JWT 安全配置
         └── GlobalExceptionHandler.java
 ```
+
+> **分层说明**：
+> - `controller` — 接口层，只做参数校验和调用 Service
+> - `service` — 业务层，编排逻辑，不直接操作 DB
+> - `mapper` — 数据访问层，MyBatis-Plus 自动化单表 CRUD
+> - `game` — 纯游戏逻辑层，零外部依赖，方便单元测试
+> - `infrastructure/cache` — 缓存层，接口抽象，Demo 用内存实现，生产可切换 Redis
 
 ### 3.2 牌型识别（Java，与 GDScript 算法一致）
 
@@ -1330,6 +511,73 @@ public class HandEvaluator {
 ### 3.3 分数计算与校验
 
 ```java
+// game/ScoreCalculator.java  (纯逻辑，零外部依赖)
+public class ScoreCalculator {
+
+    /**
+     * 计算出牌分数
+     * @param handResult  牌型识别结果
+     * @param jokers      当前拥有的小丑牌列表
+     * @param consumables 本次使用的冲分道具ID列表
+     * @param rngSeed     本次出牌的RNG子种子
+     */
+    public static ScoreResult calculate(
+            HandResult handResult,
+            List<JokerState> jokers,
+            List<String> consumables,
+            long rngSeed) {
+
+        Random rng = new Random(rngSeed);
+
+        // 1. 基础分 = 牌型基础分 × 牌型倍率
+        double mult = 1.0;
+        int baseScore = handResult.getBaseScore();
+
+        // 2. 小丑牌修饰
+        for (JokerState joker : jokers) {
+            ItemModifier mod = ItemModifierRegistry.getModifier(joker.getId());
+            if (mod != null) {
+                mult = mod.applyMult(mult, joker.getLevel(), rng);
+                baseScore = mod.applyScoreAdd(baseScore, joker.getLevel());
+            }
+        }
+
+        // 3. 冲分道具修饰
+        for (String consumableId : consumables) {
+            ItemModifier mod = ItemModifierRegistry.getModifier(consumableId);
+            if (mod != null) {
+                mult = mod.applyMult(mult, 0, rng);
+            }
+        }
+
+        // 4. 暴击判定（基于 RNG）
+        double critRate = 0.05;  // 基础5%
+        double critMult = 1.5;   // 基础1.5倍
+        for (JokerState joker : jokers) {
+            ItemModifier mod = ItemModifierRegistry.getModifier(joker.getId());
+            if (mod != null) {
+                critRate += mod.getCritRateAdd(joker.getLevel());
+                critMult += mod.getCritMultAdd(joker.getLevel());
+            }
+        }
+        boolean isCrit = rng.nextDouble() < critRate;
+        if (isCrit) {
+            mult *= critMult;
+        }
+
+        // 5. 最终分数 = 基础分 × 总倍率，取整
+        int score = (int) Math.round(baseScore * mult);
+
+        return ScoreResult.builder()
+                .score(score)
+                .isCrit(isCrit)
+                .mult(mult)
+                .build();
+    }
+}
+```
+
+```java
 // service/ScoreVerifyService.java
 @Service
 @Slf4j
@@ -1390,80 +638,47 @@ public class ScoreVerifyService {
 }
 ```
 
-### 3.4 广告 S2S 回调服务
+### 3.4 广告回调服务（Demo 简化版）
+
+> **Demo 简化**：不接入真实广告 SDK，广告 Token 用内存 ConcurrentHashMap 存储。前端调用 `revive` 接口时直接通过，无需真实广告回调。
 
 ```java
-// service/AdCallbackService.java
-@Service
-@Slf4j
-@RequiredArgsConstructor
-public class AdCallbackService {
+// infrastructure/cache/InMemoryTokenStore.java
+@Component
+public class InMemoryTokenStore {
 
-    private final AdCallbackLogMapper callbackLogMapper;
-    private final StringRedisTemplate redis;
-
-    private static final String TOKEN_PREFIX = "ad:token:";
     private static final long TOKEN_TTL_SECONDS = 300;  // 5分钟
+    private final ConcurrentHashMap<String, TokenEntry> tokenStore = new ConcurrentHashMap<>();
 
     /** 预生成广告回调 Token */
     public String generateAdToken(String userId, Long sessionId) {
         String token = "ad_cb_" + UUID.randomUUID().toString().replace("-", "");
-        redis.opsForValue().set(
-            TOKEN_PREFIX + token,
-            userId + ":" + sessionId,
-            Duration.ofSeconds(TOKEN_TTL_SECONDS)
-        );
+        tokenStore.put(token, new TokenEntry(userId, sessionId,
+                System.currentTimeMillis() + TOKEN_TTL_SECONDS * 1000));
         return token;
     }
 
-    /** 处理广告平台 S2S 回调（幂等） */
-    @Transactional
-    public void handleCallback(AdCallbackRequest req) {
-        // 1. 验签
-        if (!verifySign(req)) {
-            throw new BizException(ErrorCode.AD_TOKEN_INVALID);
-        }
-
-        // 2. 幂等：同一 trans_id 只处理一次
-        AdCallbackLog existing = callbackLogMapper.selectByTransId(req.getTransId());
-        if (existing != null) return;
-
-        // 3. 验证并消费 Token
-        String key = TOKEN_PREFIX + req.getCallbackToken();
-        String value = redis.opsForValue().get(key);
-        if (value == null) {
-            throw new BizException(ErrorCode.AD_TOKEN_EXPIRED);
-        }
-        redis.delete(key);  // 消费 Token，防重放
-
-        String[] parts = value.split(":");
-        if (!parts[0].equals(req.getUserId())) {
-            throw new BizException(ErrorCode.AD_TOKEN_INVALID);
-        }
-
-        // 4. 写回调日志
-        AdCallbackLog log = AdCallbackLog.builder()
-                .transId(req.getTransId())
-                .callbackToken(req.getCallbackToken())
-                .userId(parts[0])
-                .sessionId(Long.parseLong(parts[1]))
-                .adType(req.getAdType())
-                .scene(req.getScene())
-                .createdAt(LocalDateTime.now())
-                .build();
-        callbackLogMapper.insert(log);
+    /** 验证并消费 Token（防重放） */
+    public TokenEntry consumeToken(String callbackToken) {
+        TokenEntry entry = tokenStore.remove(callbackToken);
+        if (entry == null) return null;
+        if (System.currentTimeMillis() > entry.expireAt) return null;
+        return entry;
     }
 
-    /** 复活时校验 Token 是否已被 S2S 回调消费 */
+    /** 复活时校验 Token 是否已被消费 */
     public boolean isAdTokenConsumed(String callbackToken) {
-        return !redis.hasKey(TOKEN_PREFIX + callbackToken);
+        return !tokenStore.containsKey(callbackToken);
     }
 
-    private boolean verifySign(AdCallbackRequest req) {
-        String data = req.getTransId() + req.getUserId()
-                    + req.getCallbackToken() + req.getTimestamp();
-        return HmacUtils.verify(data, req.getSign(), AD_SECRET_KEY);
+    /** 定时清理过期 Token */
+    @Scheduled(fixedRate = 60_000)
+    public void cleanupExpired() {
+        long now = System.currentTimeMillis();
+        tokenStore.entrySet().removeIf(e -> e.getValue().expireAt < now);
     }
+
+    public record TokenEntry(String userId, Long sessionId, long expireAt) {}
 }
 ```
 
@@ -1476,22 +691,23 @@ public class AdCallbackService {
 public class ShopService {
 
     private final GameSessionMapper sessionMapper;
-    private final StringRedisTemplate redis;
     private final ItemModifierRegistry itemRegistry;
 
-    private static final String SHOP_STATE_PREFIX = "shop:state:";
+    // Demo: 商店状态用内存缓存替代 Redis
+    private final ConcurrentHashMap<String, CachedShop> shopCache = new ConcurrentHashMap<>();
     private static final int SHOP_SLOTS = 5;
+    private static final long SHOP_CACHE_TTL_MS = 30 * 60_000;  // 30分钟
 
     public ShopListResponse list(Long sessionId, int shopNode, int refreshCount) {
-        String key = SHOP_STATE_PREFIX + sessionId + ":" + shopNode;
-        String cached = redis.opsForValue().get(key);
+        String key = sessionId + ":" + shopNode;
+        CachedShop cached = shopCache.get(key);
 
         List<ItemDTO> items;
-        if (cached != null && refreshCount == 0) {
-            items = JSON.parseArray(cached, ItemDTO.class);
+        if (cached != null && !cached.isExpired() && refreshCount == 0) {
+            items = cached.items;
         } else {
             items = generateShopItems(shopNode);
-            redis.opsForValue().set(key, JSON.toJSONString(items), Duration.ofMinutes(30));
+            shopCache.put(key, new CachedShop(items, System.currentTimeMillis() + SHOP_CACHE_TTL_MS));
         }
 
         return ShopListResponse.builder()
@@ -1506,18 +722,15 @@ public class ShopService {
         GameSession session = sessionMapper.selectById(sessionId);
         ItemDTO itemConfig = itemRegistry.getConfig(itemId);
 
-        // 检查已拥有
         if (itemConfig.getItemType() == 0 && isJokerOwned(session, itemId)) {
             throw new BizException(ErrorCode.ITEM_ALREADY_OWNED);
         }
 
-        // 扣减积分
         if (session.getGameCoins() < itemConfig.getPrice()) {
             throw new BizException(ErrorCode.COINS_INSUFFICIENT);
         }
         sessionMapper.deductCoins(sessionId, itemConfig.getPrice());
 
-        // 记录持有
         if (itemConfig.getItemType() == 0) {
             sessionMapper.addJoker(sessionId, itemId);
         }
@@ -1528,114 +741,83 @@ public class ShopService {
                 .build();
     }
 
-    private List<ItemDTO> generateShopItems(int shopNode) {
-        List<ItemDTO> pool = itemRegistry.getAllItems().stream()
-                .filter(i -> i.getShopWeights()[shopNode] > 0)
-                .collect(Collectors.toList());
+    // ... generateShopItems / weightedPick / calculateRefreshCost 同 v1.0
 
-        List<ItemDTO> selected = new ArrayList<>();
-        for (int i = 0; i < SHOP_SLOTS && !pool.isEmpty(); i++) {
-            ItemDTO picked = weightedPick(pool, shopNode);
-            selected.add(picked);
-            pool.remove(picked);
-        }
-        return selected;
+    /** 定时清理过期商店缓存 */
+    @Scheduled(fixedRate = 5 * 60_000)  // 每5分钟
+    public void cleanupExpiredShopCache() {
+        long now = System.currentTimeMillis();
+        shopCache.entrySet().removeIf(e -> e.getValue().expireAt < now);
     }
 
-    private ItemDTO weightedPick(List<ItemDTO> pool, int shopNode) {
-        double totalWeight = pool.stream()
-                .mapToDouble(i -> i.getShopWeights()[shopNode]).sum();
-        double roll = Math.random() * totalWeight;
-        double cumulative = 0.0;
-        for (ItemDTO item : pool) {
-            cumulative += item.getShopWeights()[shopNode];
-            if (roll <= cumulative) return item;
-        }
-        return pool.get(pool.size() - 1);
-    }
-
-    private int calculateRefreshCost(int refreshCount) {
-        if (refreshCount == 0) return 0;
-        return 5 + (refreshCount - 1) * 5;
+    private record CachedShop(List<ItemDTO> items, long expireAt) {
+        boolean isExpired() { return System.currentTimeMillis() > expireAt; }
     }
 }
 ```
 
-### 3.6 排行榜服务
+### 3.6 排行榜服务（内存版，启动时从 SQLite 重建）
+
+> **设计要点**：排行榜是 `game_session` 表的**派生数据**（每个用户的最高分），SQLite 是 source of truth，内存是加速缓存。服务重启时从 DB 重建，数据不丢失。
 
 ```java
-// infrastructure/redis/LeaderboardRedis.java
+// infrastructure/cache/InMemoryLeaderboard.java
 @Component
 @RequiredArgsConstructor
-public class LeaderboardRedis {
+public class InMemoryLeaderboard {
 
-    private final StringRedisTemplate redisTemplate;
-    private static final String KEY_GLOBAL = "rank:global";
+    private final GameSessionMapper sessionMapper;
 
-    public void submitScore(String userId, long score) {
-        String lua = """
-            local cur = redis.call('ZSCORE', KEYS[1], ARGV[1])
-            if cur == false or tonumber(cur) < tonumber(ARGV[2]) then
-                redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
-                return 1
-            end
-            return 0
-            """;
-        redisTemplate.execute(
-            new DefaultRedisScript<>(lua, Long.class),
-            List.of(KEY_GLOBAL),
-            userId, String.valueOf(score)
+    // ConcurrentHashMap 替代 Redis ZSet，Demo 阶段足够
+    private final ConcurrentHashMap<String, Long> scoreMap = new ConcurrentHashMap<>();
+
+    /** 启动时从 SQLite 重建排行榜（防重启丢失） */
+    @PostConstruct
+    public void init() {
+        // 取每个用户已完成的局的最高分
+        List<GameSession> topSessions = sessionMapper.selectList(
+            new QueryWrapper<GameSession>()
+                .select("user_id", "MAX(total_score) as total_score")
+                .eq("status", 1)  // 只看已完成的局
+                .groupBy("user_id")
         );
+        topSessions.forEach(s -> scoreMap.put(s.getUserId(), s.getTotalScore()));
     }
 
+    /** 提交分数，只保留最高分 */
+    public void submitScore(String userId, long score) {
+        scoreMap.merge(userId, score, Math::max);
+    }
+
+    /** 全服排行榜（分页） */
     public List<RankEntry> getGlobalTop(int page, int size) {
         int start = (page - 1) * size;
-        Set<ZSetOperations.TypedTuple<String>> tuples =
-                redisTemplate.opsForZSet()
-                             .reverseRangeWithScores(KEY_GLOBAL, start, start + size - 1);
-        return buildEntries(tuples, start + 1);
+        List<Map.Entry<String, Long>> sorted = scoreMap.entrySet().stream()
+                .sorted(Map.Entry.<String, Long>comparingByValue().reversed())
+                .skip(start)
+                .limit(size)
+                .collect(Collectors.toList());
+        return IntStream.range(0, sorted.size())
+                .mapToObj(i -> RankEntry.builder()
+                        .userId(sorted.get(i).getKey())
+                        .score(sorted.get(i).getValue())
+                        .rank(start + i + 1)
+                        .build())
+                .collect(Collectors.toList());
     }
 
+    /** 获取个人排名 */
     public long getMyGlobalRank(String userId) {
-        Long rank = redisTemplate.opsForZSet().reverseRank(KEY_GLOBAL, userId);
-        return rank == null ? -1L : rank + 1;
+        Long myScore = scoreMap.get(userId);
+        if (myScore == null) return -1L;
+        return scoreMap.values().stream()
+                .filter(s -> s > myScore)
+                .count() + 1;
     }
 
-    public List<RankEntry> getFriendsRank(String userId, List<String> friendIds) {
-        List<String> allIds = new ArrayList<>(friendIds);
-        allIds.add(userId);
-
-        List<Object> scores = redisTemplate.executePipelined(
-            (RedisCallback<Object>) conn -> {
-                for (String uid : allIds) {
-                    conn.zScore(KEY_GLOBAL.getBytes(), uid.getBytes());
-                }
-                return null;
-            }
-        );
-
-        List<RankEntry> entries = new ArrayList<>();
-        for (int i = 0; i < allIds.size(); i++) {
-            Double score = (Double) scores.get(i);
-            entries.add(RankEntry.builder()
-                    .userId(allIds.get(i))
-                    .score(score == null ? 0L : score.longValue())
-                    .isSelf(allIds.get(i).equals(userId))
-                    .build());
-        }
-        entries.sort(Comparator.comparingLong(RankEntry::getScore).reversed());
-        for (int i = 0; i < entries.size(); i++) entries.get(i).setRank(i + 1);
-        return entries;
-    }
-
-    private List<RankEntry> buildEntries(
-            Set<ZSetOperations.TypedTuple<String>> tuples, int startRank) {
-        if (tuples == null) return List.of();
-        int rank = startRank;
-        return tuples.stream().map(t -> RankEntry.builder()
-                .userId(t.getValue())
-                .score(t.getScore() == null ? 0L : t.getScore().longValue())
-                .rank(rank++).build()).collect(Collectors.toList());
+    /** 好友榜（Demo 简化：无好友体系，返回全服前 N） */
+    public List<RankEntry> getFriendsRank(String userId, int size) {
+        return getGlobalTop(1, size);
     }
 }
 ```
@@ -1652,9 +834,8 @@ public class RewardService {
     private final GameSessionMapper sessionMapper;
     private final RewardTierMapper tierMapper;
     private final RewardClaimMapper claimMapper;
-    private final StringRedisTemplate redis;
-
-    private static final String STOCK_KEY = "reward:stock:";
+    // Demo: 用 AtomicInteger 替代 Redis 库存扣减
+    private final InMemoryStockStore stockStore;
 
     public RewardTier matchTier(long score) {
         return tierMapper.selectByScore(score);
@@ -1670,11 +851,9 @@ public class RewardService {
         RewardTier tier = matchTier(session.getTotalScore());
         if (tier == null) return ClaimResult.noReward();
 
-        // 2. Redis 原子库存扣减
+        // 2. 内存原子库存扣减
         if (tier.getStockLimit() != -1) {
-            Long remain = redis.opsForValue().decrement(STOCK_KEY + tier.getId());
-            if (remain == null || remain < 0) {
-                redis.opsForValue().increment(STOCK_KEY + tier.getId());
+            if (!stockStore.decrementIfPositive(tier.getId())) {
                 return ClaimResult.outOfStock();
             }
         }
@@ -1687,26 +866,48 @@ public class RewardService {
             claimMapper.insert(claim);
         } catch (DuplicateKeyException e) {
             if (tier.getStockLimit() != -1)
-                redis.opsForValue().increment(STOCK_KEY + tier.getId());
+                stockStore.increment(tier.getId());
             return ClaimResult.alreadyClaimed(null);
         }
 
         tierMapper.incrementStockUsed(tier.getId());
-
-        // 4. 异步发货
-        fulfillAsync(claim, tier);
         return ClaimResult.success(tier);
     }
+}
 
-    @Async
-    public void fulfillAsync(RewardClaim claim, RewardTier tier) {
-        try {
-            localRewardClient.send(claim.getUserId(), tier.getRewardType(), tier.getRewardName());
-            claimMapper.updateStatus(claim.getId(), ClaimStatus.FULFILLED.getCode());
-        } catch (Exception e) {
-            log.error("Reward fulfill failed claimId={}", claim.getId(), e);
-            claimMapper.updateStatus(claim.getId(), ClaimStatus.FAILED.getCode());
-        }
+// infrastructure/cache/InMemoryStockStore.java
+@Component
+@RequiredArgsConstructor
+public class InMemoryStockStore {
+
+    private final RewardTierMapper tierMapper;
+    private final ConcurrentHashMap<Integer, AtomicInteger> stockMap = new ConcurrentHashMap<>();
+
+    /** 启动时从 SQLite 重建库存（防重启丢失） */
+    @PostConstruct
+    public void init() {
+        tierMapper.selectList(new QueryWrapper<RewardTier>().eq("is_active", 1))
+            .forEach(t -> {
+                if (t.getStockLimit() != -1) {
+                    // 剩余库存 = 限制总量 - 已使用量
+                    stockMap.put(t.getId(),
+                        new AtomicInteger(t.getStockLimit() - t.getStockUsed()));
+                }
+            });
+    }
+
+    public boolean decrementIfPositive(int tierId) {
+        return stockMap.computeIfAbsent(tierId, k -> new AtomicInteger(-1))
+                .decrementAndGet() >= 0;
+    }
+
+    public void increment(int tierId) {
+        AtomicInteger stock = stockMap.get(tierId);
+        if (stock != null) stock.incrementAndGet();
+    }
+
+    public void initStock(int tierId, int limit) {
+        stockMap.put(tierId, new AtomicInteger(limit));
     }
 }
 ```
@@ -1715,114 +916,126 @@ public class RewardService {
 
 ## 第4章 数据库设计
 
-### 4.1 完整 Schema
+### 4.1 完整 Schema（SQLite 适配版）
+
+> **SQLite 适配说明**：
+> - `BIGINT` → `INTEGER`（SQLite 统一整数类型）
+> - `TINYINT` → `INTEGER`（同上）
+> - `JSON` → `TEXT`（SQLite 无原生 JSON 类型，存 JSON 字符串，MyBatis-Plus 自动序列化）
+> - `DATETIME` → `TEXT`（SQLite 存 ISO-8601 字符串）
+> - `ENGINE=InnoDB` → 移除（SQLite 无存储引擎概念）
+> - `INDEX` → `CREATE INDEX` 独立语句（SQLite 不支持内联索引）
+> - `ON UPDATE CURRENT_TIMESTAMP` → 移除（应用层负责更新时间戳）
 
 ```sql
+-- ============================================
+-- poker_roguelike.db  (SQLite 3.x)
+-- 启动时自动创建于项目根目录
+-- 使用 IF NOT EXISTS / OR IGNORE 防重复初始化
+-- ============================================
+
 -- 游戏局记录
-CREATE TABLE game_session (
-    id               BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id          VARCHAR(64)  NOT NULL COMMENT '用户ID',
-    start_time       DATETIME     NOT NULL,
-    end_time         DATETIME,
-    total_score      BIGINT       NOT NULL DEFAULT 0 COMMENT '三轮累计战斗分=排行榜积分',
-    status           TINYINT      NOT NULL DEFAULT 0 COMMENT '0进行中 1完成 2放弃',
-    rng_seed         BIGINT       NOT NULL COMMENT '服务端分配的随机种子',
-    revive_count     TINYINT      NOT NULL DEFAULT 0 COMMENT '已使用复活次数',
-    game_coins       INT          NOT NULL DEFAULT 0 COMMENT '当前游戏积分',
-    joker_states     JSON         COMMENT '已拥有小丑牌状态',
-    owned_consumables JSON        COMMENT '已拥有冲分道具ID列表',
-    created_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    INDEX idx_user_id   (user_id),
-    INDEX idx_score     (total_score DESC),
-    INDEX idx_created   (created_at)
-) ENGINE=InnoDB COMMENT='游戏局记录';
+CREATE TABLE IF NOT EXISTS game_session (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          TEXT    NOT NULL,
+    start_time       TEXT    NOT NULL,
+    end_time         TEXT,
+    total_score      INTEGER NOT NULL DEFAULT 0,
+    status           INTEGER NOT NULL DEFAULT 0,  -- 0进行中 1完成 2放弃
+    rng_seed         INTEGER NOT NULL,
+    revive_count     INTEGER NOT NULL DEFAULT 0,
+    game_coins       INTEGER NOT NULL DEFAULT 0,
+    joker_states     TEXT,                          -- JSON字符串
+    owned_consumables TEXT,                         -- JSON字符串
+    created_at       TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_session_user_id ON game_session(user_id);
+CREATE INDEX idx_session_score   ON game_session(total_score DESC);
+CREATE INDEX idx_session_created ON game_session(created_at);
 
 -- 出牌明细日志
-CREATE TABLE play_log (
-    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-    session_id   BIGINT      NOT NULL,
-    round_idx    TINYINT     NOT NULL COMMENT '轮次 0-2',
-    blind_idx    TINYINT     NOT NULL COMMENT '回合 0=小盲 1=大盲 2=Boss',
-    play_idx     TINYINT     NOT NULL COMMENT '第几次出牌 0-3',
-    cards_json   JSON        NOT NULL COMMENT '5张牌',
-    consumables  JSON        COMMENT '使用的冲分道具ID列表',
-    score        INT         NOT NULL COMMENT '本次出牌战斗分',
-    is_crit      TINYINT     NOT NULL DEFAULT 0 COMMENT '是否暴击',
-    snapshot     JSON        NOT NULL COMMENT '客户端快照',
-    server_score INT         COMMENT '服务端重算分数',
-    diff         INT         COMMENT '客户端与服务端差值',
-    created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_session (session_id)
-) ENGINE=InnoDB COMMENT='出牌日志';
+CREATE TABLE IF NOT EXISTS play_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   INTEGER NOT NULL,
+    round_idx    INTEGER NOT NULL,  -- 轮次 0-2
+    blind_idx    INTEGER NOT NULL,  -- 回合 0=小盲 1=大盲 2=Boss
+    play_idx     INTEGER NOT NULL,  -- 第几次出牌 0-3
+    cards_json   TEXT    NOT NULL,  -- 5张牌 JSON
+    consumables  TEXT,              -- 使用的冲分道具ID列表 JSON
+    score        INTEGER NOT NULL,
+    is_crit      INTEGER NOT NULL DEFAULT 0,  -- 0=否 1=是
+    snapshot     TEXT    NOT NULL,  -- 客户端快照 JSON
+    server_score INTEGER,           -- 服务端重算分数
+    diff         INTEGER,           -- 客户端与服务端差值
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_play_log_session ON play_log(session_id);
 
--- 广告 S2S 回调日志
-CREATE TABLE ad_callback_log (
-    id              BIGINT PRIMARY KEY AUTO_INCREMENT,
-    trans_id        VARCHAR(128) NOT NULL COMMENT '广告平台交易ID',
-    callback_token  VARCHAR(128) NOT NULL COMMENT '服务端预生成的Token',
-    user_id         VARCHAR(64)  NOT NULL,
-    session_id      BIGINT       NOT NULL,
-    ad_type         VARCHAR(32)  NOT NULL COMMENT '广告类型',
-    scene           VARCHAR(32)  NOT NULL COMMENT '使用场景(如revive)',
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_trans_id (trans_id) COMMENT '幂等：同一交易只处理一次',
-    INDEX idx_token (callback_token),
-    INDEX idx_user_session (user_id, session_id)
-) ENGINE=InnoDB COMMENT='广告回调日志';
+-- 广告回调日志
+CREATE TABLE IF NOT EXISTS ad_callback_log (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    trans_id        TEXT NOT NULL UNIQUE,  -- 幂等：同一交易只处理一次
+    callback_token  TEXT NOT NULL,
+    user_id         TEXT NOT NULL,
+    session_id      INTEGER NOT NULL,
+    ad_type         TEXT NOT NULL,
+    scene           TEXT NOT NULL,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_ad_token ON ad_callback_log(callback_token);
+CREATE INDEX idx_ad_user_session ON ad_callback_log(user_id, session_id);
 
 -- 奖品档位配置
-CREATE TABLE reward_tier (
-    id           INT PRIMARY KEY AUTO_INCREMENT,
-    min_score    BIGINT      NOT NULL,
-    max_score    BIGINT      NOT NULL COMMENT '-1表示无上限',
-    reward_name  VARCHAR(128) NOT NULL,
-    reward_type  VARCHAR(32)  NOT NULL COMMENT 'drink/coupon/digital/rare',
-    stock_limit  INT         NOT NULL DEFAULT -1 COMMENT '-1不限库存',
-    stock_used   INT         NOT NULL DEFAULT 0,
-    is_active    TINYINT     NOT NULL DEFAULT 1,
-    INDEX idx_score_range (min_score, max_score)
-) ENGINE=InnoDB COMMENT='奖品档位';
+CREATE TABLE IF NOT EXISTS reward_tier (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    min_score    INTEGER NOT NULL,
+    max_score    INTEGER NOT NULL,  -- -1表示无上限
+    reward_name  TEXT    NOT NULL,
+    reward_type  TEXT    NOT NULL,  -- drink/coupon/digital/rare
+    stock_limit  INTEGER NOT NULL DEFAULT -1,  -- -1不限库存
+    stock_used   INTEGER NOT NULL DEFAULT 0,
+    is_active    INTEGER NOT NULL DEFAULT 1
+);
+CREATE INDEX idx_reward_score_range ON reward_tier(min_score, max_score);
 
 -- 奖品领取记录
-CREATE TABLE reward_claim (
-    id           BIGINT PRIMARY KEY AUTO_INCREMENT,
-    user_id      VARCHAR(64) NOT NULL,
-    session_id   BIGINT      NOT NULL,
-    tier_id      INT         NOT NULL,
-    status       TINYINT     NOT NULL DEFAULT 0 COMMENT '0待发放 1已发放 2失败',
-    fail_reason  VARCHAR(256),
-    created_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_user_session (user_id, session_id) COMMENT '同一局只能领一次'
-) ENGINE=InnoDB COMMENT='奖品领取记录';
+CREATE TABLE IF NOT EXISTS reward_claim (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id      TEXT    NOT NULL,
+    session_id   INTEGER NOT NULL,
+    tier_id      INTEGER NOT NULL,
+    status       INTEGER NOT NULL DEFAULT 0,  -- 0待发放 1已发放 2失败
+    fail_reason  TEXT,
+    created_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    updated_at   TEXT    NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, session_id)  -- 同一局只能领一次
+);
 
 -- 游戏配置（热更新）
-CREATE TABLE game_config (
-    id           INT PRIMARY KEY AUTO_INCREMENT,
-    config_key   VARCHAR(64) NOT NULL COMMENT '配置键',
-    config_value JSON        NOT NULL COMMENT '配置值(JSON)',
-    version      INT        NOT NULL DEFAULT 0 COMMENT '版本号，CAS更新',
-    updated_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_key (config_key)
-) ENGINE=InnoDB COMMENT='游戏配置';
+CREATE TABLE IF NOT EXISTS game_config (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    config_key   TEXT NOT NULL UNIQUE,
+    config_value TEXT NOT NULL,  -- JSON字符串
+    version      INTEGER NOT NULL DEFAULT 0,
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
 
 -- 道具配置（热更新）
-CREATE TABLE item_config (
-    id           INT PRIMARY KEY AUTO_INCREMENT,
-    item_id      VARCHAR(64) NOT NULL COMMENT '道具ID',
-    config_data  JSON        NOT NULL COMMENT '道具完整配置',
-    version      INT        NOT NULL DEFAULT 0,
-    updated_at   DATETIME   NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    UNIQUE KEY uk_item_id (item_id)
-) ENGINE=InnoDB COMMENT='道具配置';
+CREATE TABLE IF NOT EXISTS item_config (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id      TEXT NOT NULL UNIQUE,
+    config_data  TEXT NOT NULL,  -- JSON字符串
+    version      INTEGER NOT NULL DEFAULT 0,
+    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
 ```
 
 ### 4.2 初始配置数据
 
 ```sql
 -- 门槛与积分配置
-INSERT INTO game_config (config_key, config_value) VALUES
+INSERT OR IGNORE INTO game_config (config_key, config_value) VALUES
 ('round_thresholds', '[[300,800,1500],[1500,3000,5000],[3500,6000,10000]]'),
 ('coin_rewards', '[[30,50,80],[50,80,120],[80,120,180]]'),
 ('max_revives', '3'),
@@ -1831,7 +1044,7 @@ INSERT INTO game_config (config_key, config_value) VALUES
 ('refresh_cost_formula', '{"base":5,"increment":5}');
 
 -- 奖品档位
-INSERT INTO reward_tier (min_score, max_score, reward_name, reward_type, stock_limit) VALUES
+INSERT OR IGNORE INTO reward_tier (min_score, max_score, reward_name, reward_type, stock_limit) VALUES
 (0,     999,   '参与奖',     'digital', -1),
 (1000,  2999,  '雪碧',       'drink',   5000),
 (3000,  5999,  '奶茶',       'drink',   3000),
@@ -1839,7 +1052,7 @@ INSERT INTO reward_tier (min_score, max_score, reward_name, reward_type, stock_l
 (10000, -1,    '稀有奖品',   'rare',    100);
 
 -- 道具配置示例
-INSERT INTO item_config (item_id, config_data) VALUES
+INSERT OR IGNORE INTO item_config (item_id, config_data) VALUES
 ('joker_wealthy', '{
     "display_name":"暴富小丑","description":"暴击率+10%，暴击倍率+0.5",
     "price":30,"rarity":0,"item_type":0,
@@ -1886,126 +1099,90 @@ INSERT INTO item_config (item_id, config_data) VALUES
 
 ```mermaid
 sequenceDiagram
-    participant P as 玩家
-    participant G as Godot Client
+    participant C as Client
     participant S as Server
-    
-    P->>G: 选中5张牌 + 激活冲分道具
-    G->>G: HandEvaluator.evaluate()
-    G->>G: ScoreCalculator.calculate()
-    G->>G: 播放爆分动画（即时反馈）
-    G->>S: POST /api/game/submit_play
+    participant DB as SQLite
+
+    C->>S: POST /api/game/submit_play (牌面+道具+快照)
     S->>S: HandEvaluator.evaluate(cards)
     S->>S: ScoreCalculator.calculate(...)
     S->>S: diff = |serverScore - claimed|
     alt diff ≤ 1
-        S-->>G: {verifiedScore, totalScore}
+        S-->>C: {verifiedScore, totalScore}
     else diff > 1
-        S-->>G: {verifiedScore=服务端分, totalScore}
-        S->>S: 写审计日志
+        S-->>C: {verifiedScore=服务端分, totalScore}
+        S->>S: 写审计日志 (ScoreAuditLogger)
     end
-    G->>G: 更新显示（以服务端返回为准）
-    G->>G: GameState.save_state()
-    
-    alt round_score >= threshold
-        G->>G: 回合通关
-    else plays_left == 0 && round_score < threshold
-        G->>G: 弹出复活选项
-    end
+    S->>DB: INSERT play_log
 ```
 
 ### 5.2 商店购买流程
 
 ```mermaid
 sequenceDiagram
-    participant P as 玩家
-    participant G as Godot Client
+    participant C as Client
     participant S as Server
-    
-    G->>S: GET /api/shop/list?session_id&shop_node&refresh_count=0
+    participant DB as SQLite
+
+    C->>S: GET /api/shop/list?session_id&shop_node&refresh_count=0
     S->>S: 生成商品池（权重+保底）
-    S-->>G: {items, refresh_cost=0}
-    G->>G: 展示5个商品
-    
+    S-->>C: {items, refresh_cost=0}
+
     alt 玩家刷新
-        P->>G: 点击刷新
-        G->>S: GET /api/shop/list?refresh_count=1
-        S-->>G: {新商品列表}
+        C->>S: GET /api/shop/list?refresh_count=1
+        S-->>C: {新商品列表}
     end
-    
+
     alt 玩家购买
-        P->>G: 点击购买
-        G->>S: POST /api/shop/buy
-        S->>S: 校验积分 → 扣减 → 记录
-        S-->>G: {remaining_coins, owned_item_id}
-        G->>G: ItemManager.buy_item()
-        G->>G: GameState.save_state()
+        C->>S: POST /api/shop/buy
+        S->>DB: 校验积分 → 扣减 → 记录
+        S-->>C: {remaining_coins, owned_item_id}
     end
 ```
 
-### 5.3 复活流程
+### 5.3 复活流程（Demo 简化）
 
 ```mermaid
 sequenceDiagram
-    participant P as 玩家
-    participant G as Godot Client
-    participant J as glue.js
-    participant AdSDK as 广告SDK
+    participant C as Client
     participant S as Server
-    
-    G->>P: 弹出复活选项
-    
-    alt 选择看广告
-        G->>S: POST /api/game/revive_prepare
-        S-->>G: {ad_callback_token}
-        G->>J: JSBridge.request_revive_ad()
-        J->>AdSDK: showRewardedAd(token)
-        AdSDK->>S: S2S回调 POST /api/ad/callback
-        S->>S: 验签 → 幂等 → 消费Token → 写日志
-        AdSDK-->>J: onComplete
-        J->>G: godotCallback('ad_complete')
-        G->>S: POST /api/game/revive {ad_token}
-        S->>S: isAdTokenConsumed → true
-        S-->>G: {revive_count}
-        G->>G: RoundManager.revive()
-    end
-    
-    alt 选择拉好友
-        G->>J: JSBridge.request_share_invite()
-        J->>J: KSShare.invoke()
-        J-->>G: godotCallback('friend_helped')
-        G->>S: POST /api/game/revive {friend_uid}
-        S-->>G: {revive_count}
-        G->>G: RoundManager.revive()
-    end
+    participant Mem as In-Memory TokenStore
+
+    C->>S: POST /api/game/revive_prepare
+    S->>Mem: generateAdToken()
+    S-->>C: {ad_callback_token}
+
+    Note over C,S: Demo 简化：直接调用 revive，无需真实广告回调
+
+    C->>S: POST /api/game/revive {ad_token}
+    S->>Mem: consumeToken() → 验证通过
+    S->>S: revive_count++
+    S-->>C: {revive_count}
 ```
 
 ### 5.4 奖品兑换流程
 
 ```mermaid
 sequenceDiagram
-    participant P as 玩家
-    participant G as Godot Client
+    participant C as Client
     participant S as Server
-    participant Redis as Redis
-    participant Local as 本地兑换服务
-    
-    G->>S: POST /api/game/submit_result
+    participant DB as SQLite
+    participant Mem as In-Memory StockStore
+
+    C->>S: POST /api/game/submit_result
     S->>S: 最终分数校验
-    S->>Redis: submitScore → 更新排行榜
-    S-->>G: {totalScore, rank, rewardTier}
-    
+    S->>Mem: submitScore → 更新排行榜
+    S-->>C: {totalScore, rank, rewardTier}
+
     alt 玩家点击兑换
-        G->>S: POST /api/reward/claim
-        S->>S: 查唯一键 → 未领取
-        S->>Redis: DECR reward:stock
+        C->>S: POST /api/reward/claim
+        S->>DB: 查唯一键 → 未领取
+        S->>Mem: decrementIfPositive()
         alt 库存充足
-            S->>S: INSERT reward_claim
-            S-->>G: {tier, claim_status}
-            S->>Local: fulfillAsync()
+            S->>DB: INSERT reward_claim
+            S-->>C: {tier, claim_status}
         else 库存不足
-            S->>Redis: INCR 回滚
-            S-->>G: code=4001 OUT_OF_STOCK
+            S-->>C: code=4001 OUT_OF_STOCK
         end
     end
 ```
@@ -2014,200 +1191,279 @@ sequenceDiagram
 
 ## 第6章 配置与热更新
 
-### 6.1 热更新架构
+### 6.1 热更新架构（Demo 简化）
 
-所有数值配置存放在 `game_config` 和 `item_config` 表中，随 `/api/game/start` 一起下发客户端。
+所有数值配置存放在 `game_config` 和 `item_config` SQLite 表中，随 `/api/game/start` 一起下发客户端。
 
 ```mermaid
 flowchart LR
-    Admin[运营后台] -->|修改配置| MySQL[(game_config / item_config)]
-    MySQL -->|/api/game/start 下发| Client[Godot Client]
-    MySQL -->|缓存预热| Redis[(Config Cache)]
-    Client -->|本地缓存| LocalFile[user://game_state.json]
+    Admin[运营后台] -->|修改配置| SQLite[(game_config / item_config)]
+    SQLite -->|/api/game/start 下发| Client[Client]
+    SQLite -->|启动时加载| InMem[In-Memory Cache]
 ```
 
-### 6.2 配置加载流程（Godot）
+### 6.2 配置加载流程（Server 端）
 
-```gdscript
-# ConfigLoader.gd (Autoload)
-class_name ConfigLoader
-extends Node
+```java
+// service/ConfigService.java (简化版)
+@Service
+@RequiredArgsConstructor
+public class ConfigService {
 
-var _round_config: Dictionary = {}
-var _item_configs: Array = []
-var _reward_configs: Array = []
+    private final GameConfigMapper configMapper;
+    private final ItemConfigMapper itemConfigMapper;
 
-func load_from_server(data: Dictionary):
-    _round_config = data.get("round_config", {})
-    _item_configs = data.get("item_config", {}).get("items", [])
-    _reward_configs = data.get("reward_config", [])
-    
-    RoundManager.thresholds = _round_config.get("thresholds", RoundManager.thresholds)
-    RoundManager.coin_rewards = _round_config.get("coin_rewards", RoundManager.coin_rewards)
-    _rebuild_item_resources()
-    _apply_reward_configs()
+    // 启动时加载到内存，减少 SQLite 查询频率
+    private final ConcurrentHashMap<String, String> configCache = new ConcurrentHashMap<>();
+    private List<ItemDTO> cachedItems = List.of();
 
-func _rebuild_item_resources():
-    for item_data in _item_configs:
-        var res = ItemResource.new()
-        res.id = item_data.id
-        res.display_name = item_data.display_name
-        res.description = item_data.description
-        res.price = item_data.price
-        res.rarity = item_data.rarity
-        res.item_type = item_data.item_type
-        res.shop_weight = float(item_data.shop_weights[0])
-        res.effect_class = item_data.effect_class
-        ItemManager.register_item_resource(res)
+    @PostConstruct
+    public void init() {
+        reload();
+    }
+
+    public void reload() {
+        configMapper.selectList(null).forEach(
+            c -> configCache.put(c.getConfigKey(), c.getConfigValue())
+        );
+        cachedItems = itemConfigMapper.selectList(null).stream()
+            .map(this::toItemDTO)
+            .collect(Collectors.toList());
+    }
+
+    public String getConfig(String key) {
+        return configCache.get(key);
+    }
+
+    public List<ItemDTO> getAllItems() {
+        return cachedItems;
+    }
+}
 ```
 
 ### 6.3 配置更新规范
 
-| 配置项 | 表 | 热更新 | 需发版 |
-|--------|---|--------|--------|
-| 门槛数值 | game_config | ✅ | ❌ |
-| 游戏积分奖励 | game_config | ✅ | ❌ |
-| 道具价格/权重 | item_config | ✅ | ❌ |
-| 道具效果数值 | item_config | ✅ | ❌ |
-| 奖品档位 | reward_tier | ✅ | ❌ |
-| 最大复活次数 | game_config | ✅ | ❌ |
-| 新增道具效果 | item_config | ✅（配置热更）| 需同步更新 Godot effect_class 脚本 |
-| 错误码 | 代码 | ❌ | ✅ |
-
-> 关键区分：新增道具的**配置**（ID、价格、权重）可热更新，但新**效果逻辑**（新 GDScript 类）需要客户端发版。
-
-### 6.4 运营后台最小功能
-
-| 功能 | 说明 |
-|------|------|
-| 修改门槛 | 调整9个回合的通关分数 |
-| 修改积分奖励 | 调整各回合通关后发放的游戏积分 |
-| 修改道具价格/权重 | 调整商店刷新概率和购买成本 |
-| 修改奖品档位 | 调整分数段和对应奖品 |
-| 设置库存 | 控制奖品发放上限 |
-| 查看作弊审计 | 按 session_id 查询 diff > 1 的出牌日志 |
-| 排行榜管理 | 查看/清空异常分数 |
+| 配置项 | 表 | 热更新 | 说明 |
+|--------|---|--------|------|
+| 门槛数值 | game_config | ✅ | 改 DB 即生效，下次 /start 下发 |
+| 游戏积分奖励 | game_config | ✅ | 同上 |
+| 道具价格/权重 | item_config | ✅ | 同上 |
+| 道具效果数值 | item_config | ✅ | 同上 |
+| 奖品档位 | reward_tier | ✅ | 直接改 DB |
+| 最大复活次数 | game_config | ✅ | 同上 |
+| 错误码 | 代码 | ❌ | 需发版 |
 
 ---
 
 ## 第7章 部署与运维
 
-### 7.1 Godot Web Export 部署
-
-#### 7.1.1 构建流程
+### 7.1 Demo 部署（单 Jar + SQLite 文件）
 
 ```bash
-# 1. Godot 导出
-godot --headless --export-release "Web" export/web/index.html
+# 1. 构建
+mvn clean package -DskipTests
 
-# 2. 预压缩
-find export/web -name "*.wasm" -exec gzip -k -9 {} \;
-find export/web -name "*.pck" -exec gzip -k -9 {} \;
+# 2. 运行（SQLite 数据库文件自动创建）
+java -jar target/poker-roguelike-server-1.0.jar
 
-# 3. 产物体积预估
-# index.html          ~5KB
-# poker.game.wasm     ~10MB → gzip 后 ~3.5MB
-# poker.pck           ~5MB → gzip 后 ~2MB
+# 3. 验证
+curl http://localhost:8080/api/health
 ```
 
-#### 7.1.2 Nginx 配置
+**产物结构**：
+```
+poker-roguelike-server-1.0.jar   # 可执行 jar（内嵌 Tomcat）
+poker_roguelike.db               # SQLite 数据库文件（首次运行自动创建）
+```
 
-```nginx
-server {
-    listen 443 ssl;
-    server_name game.example.com;
+### 7.2 关键配置项
 
-    # SharedArrayBuffer 必须设置
-    add_header Cross-Origin-Opener-Policy "same-origin" always;
-    add_header Cross-Origin-Embedder-Policy "require-corp" always;
+| 配置 | 默认值 | 说明 |
+|------|--------|------|
+| `server.port` | 8080 | 服务端口 |
+| `spring.datasource.url` | `jdbc:sqlite:poker_roguelike.db` | SQLite 文件路径 |
+| `jwt.secret` | - | JWT 签名密钥 |
+| `jwt.expiration` | 86400000 | Token 有效期（毫秒） |
 
-    root /var/www/poker;
+### 7.3 SQLite 配置（WAL + busy_timeout）
 
-    location / {
-        try_files $uri $uri/ /index.html;
+```java
+// config/SQLiteConfig.java
+@Configuration
+public class SQLiteConfig {
+
+    @Bean
+    public DataSource dataSource(@Value("${spring.datasource.url}") String url) {
+        SQLiteDataSource ds = new SQLiteDataSource();
+        ds.setUrl(url);
+        return ds;
     }
 
-    location ~* \.(wasm|pck)$ {
-        gzip_static on;
-        types { application/wasm wasm; }
-        expires 30d;
-        add_header Cache-Control "public, immutable";
-    }
-
-    location ~* \.(js|html|css)$ {
-        expires 1d;
-        add_header Cache-Control "public";
+    @Bean
+    public CommandLineRunner initSQLite(JdbcTemplate jdbc) {
+        return args -> {
+            jdbc.execute("PRAGMA journal_mode=WAL");       // 启用 WAL 模式（并发读）
+            jdbc.execute("PRAGMA busy_timeout=5000");       // 写锁等待 5s
+            jdbc.execute("PRAGMA synchronous=NORMAL");      // 平衡性能与安全
+            log.info("SQLite initialized: WAL mode, busy_timeout=5000ms");
+        };
     }
 }
 ```
 
-#### 7.1.3 首屏优化
+### 7.4 SQLite 数据初始化
 
-```
-Loading 流程：
-1. 打开 H5 → HTML Loading 占位（~100ms）
-2. 下载 WASM（~3.5MB gzip）+ PCK（~2MB gzip）→ 进度条
-3. WASM 编译初始化 → Godot 引擎启动
-4. 首场景加载 → 显示游戏主界面
-
-优化：
-- WASM/PCK 预压缩 + CDN 缓存
-- HTML Loading 占位图（用户不看到白屏）
-- 延迟加载：排行榜/结算场景用 load_async
-- 音频：首次触摸解锁 AudioContext（移动端限制）
-```
-
-### 7.2 后端部署
+首次启动时，应用自动执行 `schema.sql`（建表）和 `data.sql`（初始数据）。
 
 ```yaml
-# docker-compose.yml
-version: '3.8'
-services:
-  app:
-    build: .
-    ports: ["8080:8080"]
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - DB_HOST=mysql
-      - REDIS_HOST=redis
-      - JWT_SECRET=${JWT_SECRET}
-      - AD_SECRET_KEY=${AD_SECRET_KEY}
-    depends_on: [mysql, redis]
-    restart: unless-stopped
-
-  mysql:
-    image: mysql:8.0
-    environment:
-      MYSQL_DATABASE: poker_game
-      MYSQL_ROOT_PASSWORD: ${DB_PASS}
-    volumes:
-      - mysql_data:/var/lib/mysql
-      - ./sql:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASS}
-    volumes: [redis_data:/data]
-    restart: unless-stopped
-
-volumes:
-  mysql_data:
-  redis_data:
+# application.yml
+spring:
+  sql:
+    init:
+      mode: always           # 首次启动时执行
+      schema-locations: classpath:schema.sql
+      data-locations: classpath:data.sql
 ```
 
-JVM 参数：`-Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=100`
+### 7.5 后续升级路径
 
-### 7.3 监控与告警
+| 组件 | Demo | 生产 | 升级改动 |
+|------|------|------|----------|
+| 关系库 | SQLite 文件 | MySQL 8.0 | 改 datasource 配置 + 调整 SQL 类型 |
+| 缓存 | ConcurrentHashMap | Redis 7 | 实现 Cache 接口的 Redis 版本 |
+| 部署 | 单 Jar | Docker Compose | 加 docker-compose.yml |
+| 前端 | 前端独立开发 | Godot Web Export | Nginx 静态资源 + COOP/COEP |
 
-| 监控项 | 阈值 | 告警 |
+---
+
+## 第8章 开发流程规范
+
+> 本章定义后端开发的标准流程，确保每个模块从设计到交付都有质量保障。
+
+### 8.1 总体开发流程
+
+```mermaid
+flowchart TD
+    A[编写模块技术文档] --> B[SubAgent Review 技术文档]
+    B -->|有问题| C[修复文档问题]
+    C --> B
+    B -->|通过| D[进入功能开发]
+    D --> E[SubAgent Review 代码]
+    E -->|有问题| F[修复代码问题]
+    F --> E
+    E -->|通过| G[编写测试用例]
+    G --> H[运行测试]
+    H -->|不通过| I[修复测试问题]
+    I --> H
+    H -->|通过| J[模块完成 ✅]
+```
+
+### 8.2 开发流程详解
+
+#### 阶段 1：技术文档编写
+
+每个模块在开发前**必须**先编写技术文档，文档内容包括：
+
+| 要素 | 说明 |
+|------|------|
+| 模块目标 | 该模块要解决什么问题 |
+| 接口设计 | API 路径、请求/响应格式 |
+| 数据模型 | 涉及的实体、DTO、枚举 |
+| 核心逻辑 | 关键算法、业务规则 |
+| 依赖关系 | 依赖哪些其他模块/服务 |
+| 异常处理 | 错误码、异常场景 |
+| 测试策略 | 关键测试场景 |
+
+文档存放在 `server/docs/modules/` 目录下，命名规范：`{模块名}_design.md`
+
+示例：`server/docs/modules/game_service_design.md`
+
+#### 阶段 2：技术文档 Review
+
+使用 SubAgent 对技术文档进行 Review，关注点：
+
+- [ ] 接口设计是否符合 REST 规范
+- [ ] 数据模型是否与 Schema 对齐
+- [ ] 业务逻辑是否有遗漏边界场景
+- [ ] 错误处理是否完整
+- [ ] 是否考虑并发安全
+- [ ] 与其他模块的依赖是否清晰
+
+**Review 不通过** → 修复文档 → 重新 Review
+**Review 通过** → 进入阶段 3
+
+#### 阶段 3：功能开发
+
+根据通过 Review 的技术文档进行编码，遵循分层架构：
+
+```
+Controller → Service → Mapper / Infrastructure
+   ↓            ↓            ↓
+ 参数校验    业务编排      数据访问
+```
+
+开发规范：
+- Controller 层不做业务逻辑，只做参数校验和调用 Service
+- Service 层是业务核心，事务管理在此层
+- Mapper 层只做数据访问，不写业务 SQL
+- `game/` 包下保持零外部依赖，方便单元测试
+
+#### 阶段 4：代码 Review
+
+功能开发完成后，使用 SubAgent 对代码进行 Review，关注点：
+
+- [ ] 代码是否符合分层架构规范
+- [ ] 是否有空指针/资源泄漏风险
+- [ ] 异常处理是否与文档一致
+- [ ] 是否有硬编码的魔法值
+- [ ] 命名是否清晰、符合 Java 规范
+- [ ] 是否缺少必要的日志
+- [ ] 并发场景是否安全
+
+**Review 不通过** → 修复代码 → 重新 Review
+**Review 通过** → 进入阶段 5
+
+#### 阶段 5：测试用例编写与执行
+
+每个模块**必须**有对应的测试用例，分为两层：
+
+| 测试层 | 范围 | 框架 |
 |--------|------|------|
-| submit_play P99 延迟 | > 500ms | 告警 |
-| 分数校验 diff>1 比例 | > 5% | 告警（作弊或 Bug） |
-| 排行榜 ZSet 大小 | > 100万 | 告警 |
-| 奖品库存 | < 10% | 告警 |
-| 广告回调失败率 | > 10% | 告警 |
-| Redis 内存 | > 80% | 告警 |
+| 单元测试 | Service / Game 逻辑 | JUnit 5 + Mockito |
+| 集成测试 | Controller → DB 全链路 | Spring Boot Test + H2 |
+
+测试用例要求：
+- 核心业务逻辑覆盖率 ≥ 80%
+- 每个错误码至少一个测试场景
+- 边界场景（空输入、超限、并发）必须有覆盖
+
+测试命名规范：`should_{期望行为}_when_{条件}`
+示例：`should_throwHandRankMismatch_when_clientSnapshotNotMatchServer`
+
+### 8.3 模块开发顺序
+
+| 优先级 | 模块 | 说明 |
+|--------|------|------|
+| P0 | 项目骨架 | Spring Boot + SQLite + MyBatis-Plus 基础配置 |
+| P0 | 游戏逻辑层 | `game/` 包：HandEvaluator + ScoreCalculator（纯逻辑，零依赖） |
+| P1 | GameService | 局管理 + 出牌提交 + 结果提交 |
+| P1 | ScoreVerifyService | 分数校验 |
+| P2 | ShopService | 商店列表 + 购买 |
+| P2 | RankService | 排行榜（In-Memory） |
+| P2 | RewardService | 奖品匹配 + 兑换 |
+| P3 | AdCallbackService | 广告回调（Demo 简化） |
+| P3 | ConfigService | 配置加载 |
+
+### 8.4 文档与代码对应关系
+
+| 技术文档 | 代码模块 | 测试文件 |
+|----------|----------|----------|
+| `game_service_design.md` | `controller/GameController.java` + `service/GameService.java` | `GameServiceTest.java` |
+| `score_verify_design.md` | `service/ScoreVerifyService.java` | `ScoreVerifyServiceTest.java` |
+| `shop_service_design.md` | `controller/ShopController.java` + `service/ShopService.java` | `ShopServiceTest.java` |
+| `rank_service_design.md` | `controller/RankController.java` + `service/RankService.java` | `RankServiceTest.java` |
+| `reward_service_design.md` | `controller/RewardController.java` + `service/RewardService.java` | `RewardServiceTest.java` |
+| `game_logic_design.md` | `game/HandEvaluator.java` + `game/ScoreCalculator.java` | `HandEvaluatorTest.java` + `ScoreCalculatorTest.java` |
 
 ---
 
@@ -2276,3 +1532,10 @@ JVM 参数：`-Xms512m -Xmx1g -XX:+UseG1GC -XX:MaxGCPauseMillis=100`
 ---
 
 > 文档结束。后续版本迭代在此基础补充。
+>
+> **v1.1 变更记录**：
+> - 存储：MySQL → SQLite，Redis → In-Memory Cache
+> - 范围：移除前端章节，聚焦后端接口开发
+> - 架构：补充分层说明（Controller → Service → Mapper / Infrastructure）
+> - 流程：新增第8章开发流程规范
+> - 部署：简化为单 Jar + SQLite 文件
