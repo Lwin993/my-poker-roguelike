@@ -1,9 +1,10 @@
 ; Engine configuration file.
 ; It's best edited using the editor UI and not directly,
-; but the tooling script can be helpful for programmatic changes.
-; gdformat: disable
-
-[configuration]
+; since the parameters that go here are not all obvious.
+;
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -28,6 +29,10 @@ GameState="*res://scripts/core/GameState.gd"
 JSBridge="*res://scripts/net/JSBridge.gd"
 GameAPI="*res://scripts/net/GameAPI.gd"
 GameTheme="*res://scripts/core/GameTheme.gd"
+
+[configuration]
+
+config_version=5
 
 [display]
 
