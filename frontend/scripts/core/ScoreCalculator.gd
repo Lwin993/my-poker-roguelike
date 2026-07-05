@@ -87,36 +87,7 @@ func _build_steps(
 			"delta":      {},
 		})
 
-	# Step 1~N：每张小丑牌
-	for js in joker_states:
-		var delta = js.get_passive_modifiers(hand_result)
-		var dm    = delta.get("mult_add",      0.0)
-		var dcr   = delta.get("crit_rate_add", 0.0)
-		var dcm   = delta.get("crit_mult_add", 0.0)
-		var dsm   = delta.get("special_mult",  1.0)
-
-		mult         += dm
-		crit_rate    += dcr
-		crit_mult    += dcm
-		special_mult *= dsm
-
-		steps.append({
-			"type":      "joker",
-			"label":     js.resource_data.get("display_name", "?"),
-			"level":     js.level,
-			"mult":      mult,
-			"crit_rate": crit_rate,
-			"crit_mult": crit_mult,
-			"partial":   base_score * mult,
-			"delta":     {
-				"mult_add":      dm,
-				"crit_rate_add": dcr,
-				"crit_mult_add": dcm,
-				"special_mult":  dsm,
-			},
-		})
-
-	# Step N+1~M：冲分道具
+	# Step 1~M：冲分道具先直接改变本次参数
 	for item in active_consumables:
 		var delta = item.get_score_modifiers()
 		var mf    = delta.get("mult_factor",   1.0)
@@ -163,6 +134,35 @@ func _build_steps(
 					"delta":     {"mult_add": float(effective)},
 				})
 			break
+
+	# Step M+1~N：每张小丑牌按顺序触发
+	for js in joker_states:
+		var delta = js.get_passive_modifiers(hand_result)
+		var dm    = delta.get("mult_add",      0.0)
+		var dcr   = delta.get("crit_rate_add", 0.0)
+		var dcm   = delta.get("crit_mult_add", 0.0)
+		var dsm   = delta.get("special_mult",  1.0)
+
+		mult         += dm
+		crit_rate    += dcr
+		crit_mult    += dcm
+		special_mult *= dsm
+
+		steps.append({
+			"type":      "joker",
+			"label":     js.resource_data.get("display_name", "?"),
+			"level":     js.level,
+			"mult":      mult,
+			"crit_rate": crit_rate,
+			"crit_mult": crit_mult,
+			"partial":   base_score * mult,
+			"delta":     {
+				"mult_add":      dm,
+				"crit_rate_add": dcr,
+				"crit_mult_add": dcm,
+				"special_mult":  dsm,
+			},
+		})
 
 	return {
 		"params": {

@@ -14,29 +14,29 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.05, 0.08, 0.12, 1)
+color = Color(0.18, 0.035, 0.055, 1)
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 12.0
-offset_top = 12.0
-offset_right = -12.0
-offset_bottom = -12.0
-theme_override_constants/separation = 8
+offset_left = 16.0
+offset_top = 14.0
+offset_right = -16.0
+offset_bottom = -14.0
+theme_override_constants/separation = 10
 
 [node name="HeaderRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 46)
 
 [node name="ShopTitle" type="Label" parent="VBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 text = "🛒  商店"
 theme_override_font_sizes/font_size = 24
-theme_override_colors/font_color = Color(1.0, 0.88, 0.25, 1)
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="CoinsBadge" type="PanelContainer" parent="VBox/HeaderRow"]
 layout_mode = 2
@@ -45,13 +45,13 @@ layout_mode = 2
 layout_mode = 2
 text = "💰  0"
 theme_override_font_sizes/font_size = 18
-theme_override_colors/font_color = Color(1.0, 0.85, 0.20, 1)
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="SubTitle" type="Label" parent="VBox"]
 layout_mode = 2
 text = "第1轮 · 小盲 通关！"
 theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.35, 1.0, 0.55, 1)
+theme_override_colors/font_color = Color(0.0, 0.86, 0.72, 1)
 
 [node name="Divider" type="HSeparator" parent="VBox"]
 layout_mode = 2
@@ -60,12 +60,12 @@ layout_mode = 2
 layout_mode = 2
 text = "本期商品"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
 [node name="ShopGrid" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 120)
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(0, 184)
+theme_override_constants/separation = 10
 
 [node name="Divider2" type="HSeparator" parent="VBox"]
 layout_mode = 2
@@ -74,12 +74,12 @@ layout_mode = 2
 layout_mode = 2
 text = "已持有道具"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
 [node name="OwnedPanel" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 64)
-theme_override_constants/separation = 6
+custom_minimum_size = Vector2(0, 92)
+theme_override_constants/separation = 8
 
 [node name="Spacer" type="Control" parent="VBox"]
 layout_mode = 2
@@ -87,18 +87,18 @@ size_flags_vertical = 3
 
 [node name="BottomRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 56)
+custom_minimum_size = Vector2(0, 48)
 alignment = 1
-theme_override_constants/separation = 14
+theme_override_constants/separation = 12
 
 [node name="RefreshButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(148, 52)
+custom_minimum_size = Vector2(154, 44)
 text = "🔄  刷新"
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16
 
 [node name="ContinueButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(168, 52)
+custom_minimum_size = Vector2(174, 44)
 text = "继续游戏  ▶"
-theme_override_font_sizes/font_size = 17
+theme_override_font_sizes/font_size = 16

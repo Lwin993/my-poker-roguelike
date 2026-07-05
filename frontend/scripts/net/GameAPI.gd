@@ -15,7 +15,7 @@ const MOCK_ITEMS = [
 	},
 	{
 		"id": "joker_chain", "display_name": "连锁小丑",
-		"description": "连续同牌型每次+0.15倍率（可升级）",
+		"description": "记录第一手牌型；连续打出同牌型时，每次提升倍率（可升级）",
 		"price": 40, "rarity": 0, "item_type": 0,
 		"shop_weights": [25, 25, 25, 20, 15, 10],
 		"upgrade_costs": [50, 100], "effect_class": "jokers/JokerChain",

@@ -14,213 +14,328 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.05, 0.08, 0.12, 1)
+color = Color(0.18, 0.035, 0.055, 1)
 
-[node name="MainVBox" type="VBoxContainer" parent="."]
+[node name="MainHBox" type="HBoxContainer" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 10.0
+offset_left = 8.0
 offset_top = 8.0
-offset_right = -10.0
+offset_right = -8.0
 offset_bottom = -8.0
+theme_override_constants/separation = 10
+
+[node name="Sidebar" type="VBoxContainer" parent="MainHBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(128, 0)
 theme_override_constants/separation = 5
 
-[node name="TopBar" type="HBoxContainer" parent="MainVBox"]
+[node name="RoundBadge" type="PanelContainer" parent="MainHBox/Sidebar"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 36)
 
-[node name="RoundBadge" type="PanelContainer" parent="MainVBox/TopBar"]
+[node name="RoundLabel" type="Label" parent="MainHBox/Sidebar/RoundBadge"]
 layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="RoundLabel" type="Label" parent="MainVBox/TopBar/RoundBadge"]
-layout_mode = 2
-text = "第1轮 · 小盲"
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.20, 0.80, 0.60, 1)
-
-[node name="CoinsBadge" type="PanelContainer" parent="MainVBox/TopBar"]
-layout_mode = 2
-
-[node name="CoinsLabel" type="Label" parent="MainVBox/TopBar/CoinsBadge"]
-layout_mode = 2
-text = "💰 0"
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(1.0, 0.85, 0.20, 1)
-
-[node name="ScoreContainer" type="PanelContainer" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 52)
-
-[node name="ScoreVBox" type="VBoxContainer" parent="MainVBox/ScoreContainer"]
-layout_mode = 2
-theme_override_constants/separation = 4
-
-[node name="ScoreRow" type="HBoxContainer" parent="MainVBox/ScoreContainer/ScoreVBox"]
-layout_mode = 2
-
-[node name="ScoreLabel" type="Label" parent="MainVBox/ScoreContainer/ScoreVBox/ScoreRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-text = "本回合: 0"
+text = "Big Blind"
+horizontal_alignment = 1
+vertical_alignment = 1
 theme_override_font_sizes/font_size = 17
-theme_override_colors/font_color = Color(0.35, 1.0, 0.55, 1)
+theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
 
-[node name="ThresholdLabel" type="Label" parent="MainVBox/ScoreContainer/ScoreVBox/ScoreRow"]
+[node name="ScoreContainer" type="PanelContainer" parent="MainHBox/Sidebar"]
 layout_mode = 2
-text = "目标: 300"
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(1.0, 0.72, 0.20, 1)
+custom_minimum_size = Vector2(0, 82)
 
-[node name="ProgressBar" type="ProgressBar" parent="MainVBox/ScoreContainer/ScoreVBox"]
+[node name="ScoreVBox" type="VBoxContainer" parent="MainHBox/Sidebar/ScoreContainer"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 10)
-value = 0
+theme_override_constants/separation = 3
+
+[node name="ThresholdLabel" type="Label" parent="MainHBox/Sidebar/ScoreContainer/ScoreVBox"]
+layout_mode = 2
+text = "Score at least 300"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
+
+[node name="ScoreLabel" type="Label" parent="MainHBox/Sidebar/ScoreContainer/ScoreVBox"]
+layout_mode = 2
+text = "0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 25
+theme_override_colors/font_color = Color(1.0, 0.32, 0.08, 1)
+
+[node name="ProgressBar" type="ProgressBar" parent="MainHBox/Sidebar/ScoreContainer/ScoreVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 9)
+value = 0.0
 show_percentage = false
 
-[node name="InfoRow" type="HBoxContainer" parent="MainVBox"]
+[node name="RoundScoreLabel" type="Label" parent="MainHBox/Sidebar/ScoreContainer/ScoreVBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 22)
-theme_override_constants/separation = 6
+text = "Round score 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
-[node name="HandNameLabel" type="Label" parent="MainVBox/InfoRow"]
+[node name="ParamsPanel" type="PanelContainer" parent="MainHBox/Sidebar"]
 layout_mode = 2
-size_flags_horizontal = 3
-text = "← 点击手牌选择，选满5张出牌"
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+custom_minimum_size = Vector2(0, 70)
 
-[node name="PlaysLabel" type="Label" parent="MainVBox/InfoRow"]
+[node name="ParamsVBox" type="VBoxContainer" parent="MainHBox/Sidebar/ParamsPanel"]
 layout_mode = 2
-text = "出牌×4"
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.45, 0.85, 1.0, 1)
+theme_override_constants/separation = 2
 
-[node name="DiscardsLabel" type="Label" parent="MainVBox/InfoRow"]
-layout_mode = 2
-text = "换牌×4"
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.95, 0.65, 0.25, 1)
-
-[node name="TotalScoreLabel" type="Label" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 14)
-text = "累计总分: 0"
-horizontal_alignment = 2
-theme_override_font_sizes/font_size = 11
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
-
-[node name="ParamsPanel" type="PanelContainer" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 28)
-
-[node name="ParamsRow" type="HBoxContainer" parent="MainVBox/ParamsPanel"]
-layout_mode = 2
-alignment = 1
-theme_override_constants/separation = 14
-
-[node name="MultLabel" type="Label" parent="MainVBox/ParamsPanel/ParamsRow"]
+[node name="MultLabel" type="Label" parent="MainHBox/Sidebar/ParamsPanel/ParamsVBox"]
 layout_mode = 2
 text = "倍率 ×1.00"
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.45, 0.85, 1.0, 1)
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(0.23, 0.58, 1.0, 1)
 
-[node name="CritRateLabel" type="Label" parent="MainVBox/ParamsPanel/ParamsRow"]
+[node name="CritRateLabel" type="Label" parent="MainHBox/Sidebar/ParamsPanel/ParamsVBox"]
 layout_mode = 2
 text = "暴击率 0%"
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(1.0, 0.65, 0.15, 1)
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(1.0, 0.70, 0.05, 1)
 
-[node name="CritMultLabel" type="Label" parent="MainVBox/ParamsPanel/ParamsRow"]
+[node name="CritMultLabel" type="Label" parent="MainHBox/Sidebar/ParamsPanel/ParamsVBox"]
 layout_mode = 2
 text = "暴击倍数 ×2.0"
-theme_override_font_sizes/font_size = 13
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(1.0, 0.40, 0.10, 1)
 
-[node name="JokerSection" type="HBoxContainer" parent="MainVBox"]
+[node name="ActionCounts" type="HBoxContainer" parent="MainHBox/Sidebar"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 52)
-theme_override_constants/separation = 4
+custom_minimum_size = Vector2(0, 44)
+theme_override_constants/separation = 5
 
-[node name="JokerIcon" type="Label" parent="MainVBox/JokerSection"]
-layout_mode = 2
-custom_minimum_size = Vector2(22, 0)
-text = "🎭"
-vertical_alignment = 1
-theme_override_font_sizes/font_size = 15
-
-[node name="JokerSlots" type="HBoxContainer" parent="MainVBox/JokerSection"]
+[node name="PlaysLabel" type="Label" parent="MainHBox/Sidebar/ActionCounts"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
-
-[node name="ConsSection" type="HBoxContainer" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 58)
-theme_override_constants/separation = 4
-
-[node name="ConsIcon" type="Label" parent="MainVBox/ConsSection"]
-layout_mode = 2
-custom_minimum_size = Vector2(22, 0)
-text = "🧪"
+text = "出牌\n4"
+horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 15
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.23, 0.58, 1.0, 1)
 
-[node name="ConsSlots" type="HBoxContainer" parent="MainVBox/ConsSection"]
+[node name="DiscardsLabel" type="Label" parent="MainHBox/Sidebar/ActionCounts"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 4
+text = "换牌\n4"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
-[node name="SortRow" type="HBoxContainer" parent="MainVBox"]
+[node name="EconomyPanel" type="PanelContainer" parent="MainHBox/Sidebar"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 28)
+custom_minimum_size = Vector2(0, 54)
+
+[node name="EconomyVBox" type="VBoxContainer" parent="MainHBox/Sidebar/EconomyPanel"]
+layout_mode = 2
+theme_override_constants/separation = 2
+
+[node name="CoinsLabel" type="Label" parent="MainHBox/Sidebar/EconomyPanel/EconomyVBox"]
+layout_mode = 2
+text = "$0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+
+[node name="TotalScoreLabel" type="Label" parent="MainHBox/Sidebar/EconomyPanel/EconomyVBox"]
+layout_mode = 2
+text = "累计总分: 0"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
+
+[node name="SidebarSpacer" type="Control" parent="MainHBox/Sidebar"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="ButtonRow" type="VBoxContainer" parent="MainHBox/Sidebar"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 84)
+theme_override_constants/separation = 6
+
+[node name="PlayButton" type="Button" parent="MainHBox/Sidebar/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 40)
+text = "▶ 出牌"
+theme_override_font_sizes/font_size = 15
+
+[node name="DiscardButton" type="Button" parent="MainHBox/Sidebar/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 36)
+text = "↩ 换牌"
+theme_override_font_sizes/font_size = 14
+
+[node name="TableVBox" type="VBoxContainer" parent="MainHBox"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="JokerSection" type="HBoxContainer" parent="MainHBox/TableVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 82)
+theme_override_constants/separation = 8
+
+[node name="JokerSlots" type="HBoxContainer" parent="MainHBox/TableVBox/JokerSection"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="ConsSlots" type="HBoxContainer" parent="MainHBox/TableVBox/JokerSection"]
+layout_mode = 2
+custom_minimum_size = Vector2(240, 0)
 alignment = 2
 theme_override_constants/separation = 6
 
-[node name="SortLabel" type="Label" parent="MainVBox/SortRow"]
+[node name="PlaySurface" type="Control" parent="MainHBox/TableVBox"]
 layout_mode = 2
-text = "排序："
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
-
-[node name="SortByRankButton" type="Button" parent="MainVBox/SortRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(72, 24)
-text = "按大小"
-theme_override_font_sizes/font_size = 12
-
-[node name="SortBySuitButton" type="Button" parent="MainVBox/SortRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(72, 24)
-text = "按花色"
-theme_override_font_sizes/font_size = 12
-
-[node name="HandArea" type="HBoxContainer" parent="MainVBox"]
-layout_mode = 2
+custom_minimum_size = Vector2(0, 250)
 size_flags_vertical = 3
-alignment = 1
-theme_override_constants/separation = 5
-custom_minimum_size = Vector2(0, 88)
 
-[node name="ButtonRow" type="HBoxContainer" parent="MainVBox"]
+[node name="CalcTitle" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.34
+anchor_top = 0.03
+anchor_right = 0.66
+anchor_bottom = 0.17
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 21
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+
+[node name="FormulaLabel" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.24
+anchor_top = 0.16
+anchor_right = 0.76
+anchor_bottom = 0.26
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
+
+[node name="PlayedCenter" type="CenterContainer" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_top = 0.22
+anchor_right = 1.0
+anchor_bottom = 0.70
+
+[node name="PlayedArea" type="HBoxContainer" parent="MainHBox/TableVBox/PlaySurface/PlayedCenter"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 52)
 alignment = 1
 theme_override_constants/separation = 12
 
-[node name="PlayButton" type="Button" parent="MainVBox/ButtonRow"]
-layout_mode = 2
-custom_minimum_size = Vector2(170, 48)
-text = "▶ 出牌"
-theme_override_font_sizes/font_size = 18
+[node name="ScoreBurstLabel" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.42
+anchor_top = 0.12
+anchor_right = 0.58
+anchor_bottom = 0.28
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 32
+theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
 
-[node name="DiscardButton" type="Button" parent="MainVBox/ButtonRow"]
+[node name="CalcStepsList" type="VBoxContainer" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.04
+anchor_top = 0.08
+anchor_right = 0.96
+anchor_bottom = 0.24
+theme_override_constants/separation = 5
+
+[node name="FinalScoreLabel" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.25
+anchor_top = 0.08
+anchor_right = 0.75
+anchor_bottom = 0.24
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 26
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+
+[node name="CritBanner" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.35
+anchor_top = 0.56
+anchor_right = 0.65
+anchor_bottom = 0.72
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 19
+theme_override_colors/font_color = Color(1.0, 0.45, 0.10, 1)
+visible = false
+
+[node name="CalcCloseHint" type="Label" parent="MainHBox/TableVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.36
+anchor_top = 0.88
+anchor_right = 0.64
+anchor_bottom = 1.0
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
+visible = false
+
+[node name="BottomTools" type="HBoxContainer" parent="MainHBox/TableVBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(130, 48)
-text = "↩ 换牌"
-theme_override_font_sizes/font_size = 18
+custom_minimum_size = Vector2(0, 46)
+theme_override_constants/separation = 8
+
+[node name="SortRow" type="HBoxContainer" parent="MainHBox/TableVBox/BottomTools"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 2
+theme_override_constants/separation = 6
+
+[node name="SortByRankButton" type="Button" parent="MainHBox/TableVBox/BottomTools/SortRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(72, 28)
+text = "按大小"
+theme_override_font_sizes/font_size = 12
+
+[node name="SortBySuitButton" type="Button" parent="MainHBox/TableVBox/BottomTools/SortRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(72, 28)
+text = "按花色"
+theme_override_font_sizes/font_size = 12
+
+[node name="HandRow" type="HBoxContainer" parent="MainHBox/TableVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 132)
+alignment = 1
+theme_override_constants/separation = 10
+
+[node name="HandHintLabel" type="Label" parent="MainHBox/TableVBox/HandRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(124, 0)
+text = "选择 5 张牌"
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
+autowrap_mode = 3
+
+[node name="HandArea" type="HBoxContainer" parent="MainHBox/TableVBox/HandRow"]
+layout_mode = 2
+alignment = 1
+theme_override_constants/separation = 10
 
 [node name="ScorePopup" type="Label" parent="."]
 layout_mode = 1
@@ -228,89 +343,14 @@ anchor_left = 0.5
 anchor_top = 0.45
 anchor_right = 0.5
 anchor_bottom = 0.45
-offset_left = -120.0
-offset_right = 120.0
+offset_left = -140.0
 offset_top = -30.0
+offset_right = 140.0
 offset_bottom = 30.0
 text = ""
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 38
-theme_override_colors/font_color = Color(1, 0.9, 0.2, 1)
-visible = false
-
-[node name="CalcOverlay" type="Control" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-visible = false
-mouse_filter = 2
-
-[node name="CalcBG" type="ColorRect" parent="CalcOverlay"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-color = Color(0.0, 0.0, 0.0, 0.72)
-mouse_filter = 0
-
-[node name="CalcPanel" type="PanelContainer" parent="CalcOverlay"]
-layout_mode = 1
-anchor_left = 0.05
-anchor_top = 0.10
-anchor_right = 0.95
-anchor_bottom = 0.90
-offset_left = 0.0
-offset_top = 0.0
-offset_right = 0.0
-offset_bottom = 0.0
-
-[node name="CalcVBox" type="VBoxContainer" parent="CalcOverlay/CalcPanel"]
-layout_mode = 2
-theme_override_constants/separation = 8
-
-[node name="CalcTitle" type="Label" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-text = "✨ 计算过程"
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
-theme_override_colors/font_color = Color(1.0, 0.92, 0.30, 1)
-
-[node name="FormulaLabel" type="Label" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-text = "得分 = 基础分 × 倍率"
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
-
-[node name="CalcStepsList" type="VBoxContainer" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-theme_override_constants/separation = 5
-
-[node name="HSep" type="HSeparator" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-
-[node name="FinalScoreLabel" type="Label" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-text = ""
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.35, 1.0, 0.55, 1)
-
-[node name="CritBanner" type="Label" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-text = ""
-horizontal_alignment = 1
 theme_override_font_sizes/font_size = 22
-theme_override_colors/font_color = Color(1.0, 0.45, 0.10, 1)
-visible = false
-
-[node name="CalcCloseHint" type="Label" parent="CalcOverlay/CalcPanel/CalcVBox"]
-layout_mode = 2
-text = "点击任意处继续..."
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.45, 0.55, 0.65, 1)
+theme_override_colors/font_color = Color(1, 0.9, 0.2, 1)
 visible = false
 
 [node name="JokerDetailOverlay" type="Control" parent="."]
@@ -331,10 +371,10 @@ mouse_filter = 0
 
 [node name="JokerDetailPanel" type="PanelContainer" parent="JokerDetailOverlay"]
 layout_mode = 1
-anchor_left = 0.08
-anchor_top = 0.20
-anchor_right = 0.92
-anchor_bottom = 0.82
+anchor_left = 0.20
+anchor_top = 0.16
+anchor_right = 0.80
+anchor_bottom = 0.86
 offset_left = 0.0
 offset_top = 0.0
 offset_right = 0.0
@@ -349,14 +389,14 @@ layout_mode = 2
 text = "🎭 小丑牌名"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 20
-theme_override_colors/font_color = Color(0.75, 0.45, 1.0, 1)
+theme_override_colors/font_color = Color(0.73, 0.31, 1.0, 1)
 
 [node name="JokerDetailLevel" type="Label" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
 layout_mode = 2
 text = "Lv1"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(1.0, 0.92, 0.25, 1)
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="JokerDetailDesc" type="Label" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
 layout_mode = 2

@@ -1,41 +1,44 @@
 # GameBoardUI.gd - 主战斗界面交互逻辑
 extends Control
 
-# ── 顶部信息 ──
-@onready var round_label       = $MainVBox/TopBar/RoundBadge/RoundLabel
-@onready var coins_label       = $MainVBox/TopBar/CoinsBadge/CoinsLabel
+# ── 左侧状态栏 ──
+@onready var round_label       = $MainHBox/Sidebar/RoundBadge/RoundLabel
+@onready var coins_label       = $MainHBox/Sidebar/EconomyPanel/EconomyVBox/CoinsLabel
 # ── 分数 ──
-@onready var score_label       = $MainVBox/ScoreContainer/ScoreVBox/ScoreRow/ScoreLabel
-@onready var threshold_label   = $MainVBox/ScoreContainer/ScoreVBox/ScoreRow/ThresholdLabel
-@onready var progress_bar      = $MainVBox/ScoreContainer/ScoreVBox/ProgressBar
+@onready var score_label       = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ScoreLabel
+@onready var threshold_label   = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ThresholdLabel
+@onready var progress_bar      = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ProgressBar
+@onready var round_score_detail = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/RoundScoreLabel
 # ── 信息行 ──
-@onready var hand_name_label   = $MainVBox/InfoRow/HandNameLabel
-@onready var plays_label       = $MainVBox/InfoRow/PlaysLabel
-@onready var discards_label    = $MainVBox/InfoRow/DiscardsLabel
-@onready var total_score_label = $MainVBox/TotalScoreLabel
+@onready var hand_name_label   = $MainHBox/TableVBox/HandRow/HandHintLabel
+@onready var plays_label       = $MainHBox/Sidebar/ActionCounts/PlaysLabel
+@onready var discards_label    = $MainHBox/Sidebar/ActionCounts/DiscardsLabel
+@onready var total_score_label = $MainHBox/Sidebar/EconomyPanel/EconomyVBox/TotalScoreLabel
 # ── 参数面板 ──
-@onready var mult_label        = $MainVBox/ParamsPanel/ParamsRow/MultLabel
-@onready var crit_rate_label   = $MainVBox/ParamsPanel/ParamsRow/CritRateLabel
-@onready var crit_mult_label   = $MainVBox/ParamsPanel/ParamsRow/CritMultLabel
+@onready var mult_label        = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/MultLabel
+@onready var crit_rate_label   = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/CritRateLabel
+@onready var crit_mult_label   = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/CritMultLabel
 # ── 道具区 ──
-@onready var joker_slots       = $MainVBox/JokerSection/JokerSlots
-@onready var cons_slots        = $MainVBox/ConsSection/ConsSlots
+@onready var joker_slots       = $MainHBox/TableVBox/JokerSection/JokerSlots
+@onready var cons_slots        = $MainHBox/TableVBox/JokerSection/ConsSlots
 # ── 手牌 / 按钮 ──
-@onready var hand_area         = $MainVBox/HandArea
-@onready var play_button       = $MainVBox/ButtonRow/PlayButton
-@onready var discard_button    = $MainVBox/ButtonRow/DiscardButton
-@onready var sort_by_rank_btn  = $MainVBox/SortRow/SortByRankButton
-@onready var sort_by_suit_btn  = $MainVBox/SortRow/SortBySuitButton
+@onready var hand_area         = $MainHBox/TableVBox/HandRow/HandArea
+@onready var play_button       = $MainHBox/Sidebar/ButtonRow/PlayButton
+@onready var discard_button    = $MainHBox/Sidebar/ButtonRow/DiscardButton
+@onready var sort_by_rank_btn  = $MainHBox/TableVBox/BottomTools/SortRow/SortByRankButton
+@onready var sort_by_suit_btn  = $MainHBox/TableVBox/BottomTools/SortRow/SortBySuitButton
 # ── 弹出层 ──
 @onready var score_popup       = $ScorePopup
 @onready var revive_dialog     = $ReviveDialog
-# ── 计算过程浮层 ──
-@onready var calc_overlay      = $CalcOverlay
-@onready var calc_steps_list   = $CalcOverlay/CalcPanel/CalcVBox/CalcStepsList
-@onready var final_score_label = $CalcOverlay/CalcPanel/CalcVBox/FinalScoreLabel
-@onready var crit_banner       = $CalcOverlay/CalcPanel/CalcVBox/CritBanner
-@onready var calc_close_hint   = $CalcOverlay/CalcPanel/CalcVBox/CalcCloseHint
-@onready var calc_bg           = $CalcOverlay/CalcBG
+# ── 牌桌内联计分区 ──
+@onready var calc_title        = $MainHBox/TableVBox/PlaySurface/CalcTitle
+@onready var formula_label     = $MainHBox/TableVBox/PlaySurface/FormulaLabel
+@onready var played_area       = $MainHBox/TableVBox/PlaySurface/PlayedCenter/PlayedArea
+@onready var score_burst_label = $MainHBox/TableVBox/PlaySurface/ScoreBurstLabel
+@onready var calc_steps_list   = $MainHBox/TableVBox/PlaySurface/CalcStepsList
+@onready var final_score_label = $MainHBox/TableVBox/PlaySurface/FinalScoreLabel
+@onready var crit_banner       = $MainHBox/TableVBox/PlaySurface/CritBanner
+@onready var calc_close_hint   = $MainHBox/TableVBox/PlaySurface/CalcCloseHint
 # ── 小丑牌详情浮层 ──
 @onready var joker_detail_overlay = $JokerDetailOverlay
 @onready var joker_detail_bg      = $JokerDetailOverlay/JokerDetailBG
@@ -50,14 +53,15 @@ var _used_consumable_ids:   Array = []
 var _used_consumable_items: Array = []
 var _selected_indices:      Array = []
 var _card_nodes:            Array = []
-var _calc_waiting:          bool  = false   # 计算动画进行中，等待点击
+var _base_score_preview:    int   = 0
+var _joker_badge_nodes:     Array = []
 
 const SUIT_SYMBOLS = ["♠", "♥", "♦", "♣"]
 const SUIT_COLORS  = {
-	0: Color(0.45, 0.75, 1.00, 1),
-	1: Color(0.95, 0.30, 0.30, 1),
-	2: Color(1.00, 0.55, 0.20, 1),
-	3: Color(0.35, 0.85, 0.45, 1),
+	0: Color(0.11, 0.12, 0.20, 1),
+	1: Color(0.92, 0.12, 0.15, 1),
+	2: Color(0.96, 0.38, 0.08, 1),
+	3: Color(0.04, 0.46, 0.27, 1),
 }
 
 # ════════════════════════════════════════════════════════════════
@@ -66,8 +70,8 @@ func _ready():
 	RoundManager.round_failed.connect(_on_round_failed)
 	RoundManager.phase_changed.connect(_on_phase_changed)
 
-	_style_main_button(play_button,    Color(0.20, 0.80, 0.60, 1))
-	_style_main_button(discard_button, Color(0.95, 0.55, 0.10, 1))
+	_style_main_button(play_button,    GameTheme.COLOR_ACCENT)
+	_style_main_button(discard_button, GameTheme.COLOR_GOLD)
 
 	play_button.pressed.connect(_on_play_pressed)
 	discard_button.pressed.connect(_on_discard_pressed)
@@ -80,8 +84,6 @@ func _ready():
 	sort_by_rank_btn.pressed.connect(_on_sort_by_rank)
 	sort_by_suit_btn.pressed.connect(_on_sort_by_suit)
 
-	# 点击计算浮层背景 → 关闭
-	calc_bg.gui_input.connect(_on_calc_bg_input)
 	# 小丑牌详情关闭按钮
 	joker_detail_close.pressed.connect(func(): joker_detail_overlay.visible = false)
 	joker_detail_bg.gui_input.connect(func(ev):
@@ -89,44 +91,43 @@ func _ready():
 			joker_detail_overlay.visible = false
 	)
 
-	_style_button(joker_detail_close, Color(0.55, 0.65, 0.75, 1))
+	_style_button(joker_detail_close, GameTheme.COLOR_BLUE_CHIP)
+	crit_rate_label.visible = true
+	crit_mult_label.visible = false
+	_reset_inline_calc()
 	_update_ui()
 
 func _style_main_button(btn: Button, color: Color):
-	var s = StyleBoxFlat.new()
-	s.bg_color = color * 0.22; s.border_color = color
-	s.set_border_width_all(2); s.set_corner_radius_all(10)
+	var s = GameTheme.get_button_style(color)
 	s.content_margin_left = 10; s.content_margin_right = 10
 	s.content_margin_top  = 8;  s.content_margin_bottom = 8
-	var h = s.duplicate(); h.bg_color = color * 0.38; h.border_color = color * 1.15
-	var p = s.duplicate(); p.bg_color = color * 0.55
+	var h = GameTheme.get_button_hover_style(color)
+	var p = GameTheme.get_button_pressed_style(color)
 	btn.add_theme_stylebox_override("normal",  s)
 	btn.add_theme_stylebox_override("hover",   h)
 	btn.add_theme_stylebox_override("pressed", p)
-	btn.add_theme_color_override("font_color",       color)
+	btn.add_theme_color_override("font_color",       GameTheme.COLOR_TEXT_MAIN)
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 func _style_button(btn: Button, color: Color):
-	var s = StyleBoxFlat.new()
-	s.bg_color = color * 0.20; s.border_color = color
-	s.set_border_width_all(1); s.set_corner_radius_all(8)
-	var h = s.duplicate(); h.bg_color = color * 0.36
+	var s = GameTheme.get_button_style(color)
+	var h = GameTheme.get_button_hover_style(color)
 	btn.add_theme_stylebox_override("normal", s)
 	btn.add_theme_stylebox_override("hover",  h)
-	btn.add_theme_color_override("font_color", color)
+	btn.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_MAIN)
 
 func _style_sort_button(btn: Button, color: Color):
 	var s = StyleBoxFlat.new()
-	s.bg_color = color * 0.12; s.border_color = color * 0.55
-	s.set_border_width_all(1); s.set_corner_radius_all(6)
+	s.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.16); s.border_color = color.darkened(0.18)
+	s.set_border_width_all(2); s.set_corner_radius_all(5)
 	s.content_margin_left = 6; s.content_margin_right = 6
 	s.content_margin_top  = 2; s.content_margin_bottom = 2
-	var h = s.duplicate(); h.bg_color = color * 0.28; h.border_color = color
-	var p = s.duplicate(); p.bg_color = color * 0.42
+	var h = s.duplicate(); h.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.30); h.border_color = color
+	var p = s.duplicate(); p.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.45)
 	btn.add_theme_stylebox_override("normal",  s)
 	btn.add_theme_stylebox_override("hover",   h)
 	btn.add_theme_stylebox_override("pressed", p)
-	btn.add_theme_color_override("font_color",       color)
+	btn.add_theme_color_override("font_color",       GameTheme.COLOR_TEXT_MAIN)
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 # ── 排序 ────────────────────────────────────────────────────────
@@ -179,22 +180,23 @@ func _refresh_all():
 # 基础 UI
 # ════════════════════════════════════════════════════════════════
 func _update_ui():
-	round_label.text  = "第 %d 轮 · %s" % [RoundManager.current_round + 1, RoundManager.get_current_blind_name()]
-	coins_label.text  = "💰 %d" % RoundManager.game_coins
+	round_label.text  = RoundManager.get_current_blind_name()
+	coins_label.text  = "$%d" % RoundManager.game_coins
 	total_score_label.text = "累计总分: %d" % RoundManager.total_score
 
 	var plays    = RoundManager.plays_left
 	var discards = RoundManager.discards_left
-	plays_label.text    = "出牌 × %d" % plays
-	discards_label.text = "换牌 × %d" % discards
+	plays_label.text    = "出牌\n%d" % plays
+	discards_label.text = "换牌\n%d" % discards
 	plays_label.add_theme_color_override("font_color",
-		Color(0.45, 0.85, 1.0, 1) if plays > 0 else Color(0.5, 0.3, 0.3, 1))
+		GameTheme.COLOR_BLUE_CHIP if plays > 0 else Color(0.42, 0.26, 0.28, 1))
 	discards_label.add_theme_color_override("font_color",
-		Color(0.95, 0.65, 0.25, 1) if discards > 0 else Color(0.5, 0.3, 0.3, 1))
+		GameTheme.COLOR_GOLD if discards > 0 else Color(0.42, 0.26, 0.28, 1))
 
 	var threshold = RoundManager.get_current_threshold()
-	score_label.text     = "本回合: %d" % RoundManager.round_score
-	threshold_label.text = "/ %d" % threshold
+	score_label.text     = "%d" % RoundManager.round_score
+	threshold_label.text = "Score at least %d" % threshold
+	round_score_detail.text = "Round score %d" % RoundManager.round_score
 	progress_bar.max_value = threshold
 	progress_bar.value     = min(RoundManager.round_score, threshold)
 
@@ -208,9 +210,10 @@ func _on_score_updated(_rs: int, _ts: int):
 # 参数面板（实时预览）
 # ════════════════════════════════════════════════════════════════
 func _update_params_panel(hand_result: Dictionary = {}):
+	_base_score_preview = hand_result.get("base_score", 0)
 	var params = ScoreCalculator.preview_params(
 		hand_result,
-		ItemManager.get_active_joker_states(),
+		[],
 		_used_consumable_items,
 		DeckManager.hand
 	)
@@ -221,16 +224,16 @@ func _update_params_panel(hand_result: Dictionary = {}):
 	)
 
 func _apply_params_to_labels(mult: float, cr: float, cm: float):
-	mult_label.text      = "倍率 ×%.2f" % mult
+	mult_label.text      = "基础分 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
 	crit_rate_label.text = "暴击率 %d%%" % int(cr * 100)
 	crit_mult_label.text = "暴击倍数 ×%.1f" % cm
 
 	mult_label.add_theme_color_override("font_color",
-		Color(0.90, 1.00, 0.40, 1) if mult > 1.01 else Color(0.45, 0.85, 1.0, 1))
+		GameTheme.COLOR_GOLD if mult > 1.01 else GameTheme.COLOR_BLUE_CHIP)
 	crit_rate_label.add_theme_color_override("font_color",
-		Color(1.0, 0.75, 0.10, 1) if cr > 0.001 else Color(0.55, 0.55, 0.60, 1))
+		GameTheme.COLOR_RARE if cr > 0.001 else GameTheme.COLOR_TEXT_DIM)
 	crit_mult_label.add_theme_color_override("font_color",
-		Color(1.0, 0.40, 0.10, 1) if cm > 2.01 else Color(0.65, 0.55, 0.50, 1))
+		GameTheme.COLOR_CRIT if cm > 2.01 else GameTheme.COLOR_TEXT_DIM)
 
 # ════════════════════════════════════════════════════════════════
 # 手牌
@@ -239,6 +242,8 @@ func _rebuild_hand():
 	for node in _card_nodes: node.queue_free()
 	_card_nodes.clear()
 	_selected_indices.clear()
+	_update_played_preview()
+	_sort_deck_by_rank()
 	for i in range(DeckManager.hand.size()):
 		var btn = _make_card_button(DeckManager.hand[i], i)
 		hand_area.add_child(btn)
@@ -257,12 +262,19 @@ func _rebuild_hand_keep_selection():
 	_update_card_visuals()
 	_update_hand_name_label()
 
+func _sort_deck_by_rank():
+	DeckManager.hand.sort_custom(func(a, b):
+		var ra = 14 if a.rank == 1 else a.rank
+		var rb = 14 if b.rank == 1 else b.rank
+		return ra > rb
+	)
+
 func _make_card_button(card, idx: int) -> Button:
 	var sc  = SUIT_COLORS[card.suit]
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(50, 78)
+	btn.custom_minimum_size = Vector2(74, 112)
 	btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
-	btn.add_theme_font_size_override("font_size", 17)
+	btn.add_theme_font_size_override("font_size", 24)
 	btn.add_theme_color_override("font_color", sc)
 	_apply_card_style(btn, sc, false)
 	var i = idx
@@ -270,17 +282,18 @@ func _make_card_button(card, idx: int) -> Button:
 	return btn
 
 func _apply_card_style(btn: Button, sc: Color, selected: bool):
-	var normal = StyleBoxFlat.new()
-	var hover  = StyleBoxFlat.new()
-	if selected:
-		normal.bg_color     = sc * 0.28; normal.border_color = Color(1.0, 0.85, 0.15, 1)
-		normal.set_border_width_all(2);  normal.shadow_color  = Color(1.0, 0.85, 0.15, 0.35); normal.shadow_size = 5
-		hover.bg_color      = sc * 0.38; hover.border_color   = Color(1.0, 0.95, 0.50, 1)
-		hover.set_border_width_all(2);   hover.shadow_color   = Color(1.0, 0.85, 0.15, 0.5);  hover.shadow_size  = 6
-	else:
-		normal.bg_color = Color(0.10, 0.15, 0.22, 1); normal.border_color = sc * 0.6; normal.set_border_width_all(1)
-		hover.bg_color  = Color(0.14, 0.20, 0.30, 1); hover.border_color  = sc;       hover.set_border_width_all(1)
-	normal.set_corner_radius_all(8); hover.set_corner_radius_all(8)
+	var normal = GameTheme.get_card_style(sc, selected)
+	var hover  = GameTheme.get_card_style(sc, selected)
+	hover.bg_color = Color(1.0, 0.95, 0.78, 1) if not selected else Color(1.0, 0.86, 0.36, 1)
+	hover.border_color = sc if not selected else Color(1.0, 0.96, 0.52, 1)
+	normal.content_margin_left = 8
+	normal.content_margin_right = 8
+	normal.content_margin_top = 14
+	normal.content_margin_bottom = 14
+	hover.content_margin_left = 8
+	hover.content_margin_right = 8
+	hover.content_margin_top = 14
+	hover.content_margin_bottom = 14
 	btn.add_theme_stylebox_override("normal",  normal)
 	btn.add_theme_stylebox_override("hover",   hover)
 	btn.add_theme_stylebox_override("pressed", normal)
@@ -296,50 +309,81 @@ func _update_card_visuals():
 		var btn = _card_nodes[i]; var sc = SUIT_COLORS[DeckManager.hand[i].suit]
 		var sel = _selected_indices.has(i)
 		_apply_card_style(btn, sc, sel)
-		btn.add_theme_color_override("font_color", Color.WHITE if sel else sc)
+		btn.add_theme_color_override("font_color", GameTheme.COLOR_CARD_INK if sel else sc)
+		btn.position.y = -12 if sel else 0
+	_update_played_preview()
 
 func _update_hand_name_label():
 	if _selected_indices.size() == 5:
 		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
 		var result = HandEvaluator.evaluate(sel_cards)
-		hand_name_label.text = "✨ %s   基础分 %d" % [result.hand_name, result.base_score]
-		hand_name_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.25, 1))
+		hand_name_label.text = "%s\n基础分 %d" % [result.hand_name, result.base_score]
+		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 		_update_params_panel(result)
 	elif _selected_indices.size() > 0:
-		hand_name_label.text = "已选 %d 张（还需 %d 张）" % [_selected_indices.size(), 5 - _selected_indices.size()]
-		hand_name_label.add_theme_color_override("font_color", Color(0.85, 0.85, 0.5, 1))
+		hand_name_label.text = "已选 %d 张\n还需 %d 张" % [_selected_indices.size(), 5 - _selected_indices.size()]
+		hand_name_label.add_theme_color_override("font_color", Color(0.98, 0.76, 0.34, 1))
 		_update_params_panel()
 	else:
-		hand_name_label.text = "← 点击手牌选择，选满5张出牌"
-		hand_name_label.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75, 1))
+		hand_name_label.text = "选择 5 张牌"
+		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 		_update_params_panel()
+
+func _update_played_preview():
+	for child in played_area.get_children():
+		child.queue_free()
+	if _selected_indices.is_empty():
+		return
+	for idx in _selected_indices:
+		if idx >= 0 and idx < DeckManager.hand.size():
+			played_area.add_child(_make_table_card(DeckManager.hand[idx]))
+
+func _make_table_card(card) -> Button:
+	var sc = SUIT_COLORS[card.suit]
+	var btn = Button.new()
+	btn.disabled = true
+	btn.custom_minimum_size = Vector2(58, 86)
+	btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
+	btn.add_theme_font_size_override("font_size", 19)
+	btn.add_theme_color_override("font_color", sc)
+	var style = GameTheme.get_card_style(sc, false)
+	style.content_margin_left = 6
+	style.content_margin_right = 6
+	style.content_margin_top = 10
+	style.content_margin_bottom = 10
+	btn.add_theme_stylebox_override("disabled", style)
+	btn.add_theme_color_override("font_disabled_color", sc)
+	return btn
 
 # ════════════════════════════════════════════════════════════════
 # 小丑牌
 # ════════════════════════════════════════════════════════════════
 func _rebuild_jokers():
 	for child in joker_slots.get_children(): child.queue_free()
+	_joker_badge_nodes.clear()
 	if ItemManager.jokers.is_empty():
 		var lbl = Label.new(); lbl.text = "暂无小丑牌"
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.5, 1))
 		joker_slots.add_child(lbl); return
 	for joker in ItemManager.jokers:
-		joker_slots.add_child(_make_joker_badge(joker))
+		var badge = _make_joker_badge(joker)
+		joker_slots.add_child(badge)
+		_joker_badge_nodes.append(badge)
 
 func _make_joker_badge(joker) -> Control:
-	var color = Color(0.75, 0.45, 1.0, 1)
+	var color = GameTheme.COLOR_JOKER
 
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(68, 52)
+	btn.custom_minimum_size = Vector2(74, 58)
 	btn.tooltip_text = joker.resource_data.get("description", "")
 
 	var s = StyleBoxFlat.new()
-	s.bg_color = color * 0.12; s.border_color = color * 0.55
-	s.set_border_width_all(1); s.set_corner_radius_all(7)
+	s.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.20); s.border_color = color
+	s.set_border_width_all(2); s.set_corner_radius_all(6)
 	s.content_margin_left = 4; s.content_margin_right = 4
 	s.content_margin_top = 4; s.content_margin_bottom = 4
-	var h = s.duplicate(); h.bg_color = color * 0.26; h.border_color = color
+	var h = s.duplicate(); h.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.36); h.border_color = color.lightened(0.16)
 	btn.add_theme_stylebox_override("normal", s)
 	btn.add_theme_stylebox_override("hover",  h)
 
@@ -350,11 +394,11 @@ func _make_joker_badge(joker) -> Control:
 	var row = HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 2); vb.add_child(row)
 
-	var icon = Label.new(); icon.text = "🎭"; icon.add_theme_font_size_override("font_size", 14)
+	var icon = Label.new(); icon.text = "🎭"; icon.add_theme_font_size_override("font_size", 15)
 	row.add_child(icon)
 	var lv = Label.new(); lv.text = "Lv%d" % joker.level
-	lv.add_theme_font_size_override("font_size", 11)
-	lv.add_theme_color_override("font_color", Color(1.0, 0.92, 0.25, 1))
+	lv.add_theme_font_size_override("font_size", 10)
+	lv.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 	row.add_child(lv)
 
 	var nm = Label.new()
@@ -371,7 +415,7 @@ func _make_joker_badge(joker) -> Control:
 
 # ── 小丑牌详情弹窗 ──────────────────────────────────────────
 func _show_joker_detail(joker):
-	var color    = Color(0.75, 0.45, 1.0, 1)
+	var color    = GameTheme.COLOR_JOKER
 	var name_str = joker.resource_data.get("display_name", "?")
 	var desc_str = joker.resource_data.get("description", "")
 
@@ -382,18 +426,25 @@ func _show_joker_detail(joker):
 	# 清空旧参数
 	for child in joker_detail_params.get_children(): child.queue_free()
 
-	# 获取当前等级下的参数贡献
-	var delta = joker.get_passive_modifiers({})
-	var dm    = delta.get("mult_add",      0.0)
-	var dcr   = delta.get("crit_rate_add", 0.0)
-	var dcm   = delta.get("crit_mult_add", 0.0)
-	var dsm   = delta.get("special_mult",  1.0)
+	if joker.has_method("get_chain_info"):
+		var info = joker.get_chain_info()
+		_add_param_row("第一手牌型", info.get("hand_name", "尚未触发"), GameTheme.COLOR_GOLD, info.get("has_chain", false))
+		_add_param_row("连锁次数", "%d 次" % info.get("consecutive", 0), GameTheme.COLOR_TEXT_DIM, info.get("consecutive", 0) > 0)
+		_add_param_row("提升倍率", "+%.2f" % info.get("current_bonus", 0.0), GameTheme.COLOR_BLUE_CHIP, info.get("current_bonus", 0.0) != 0.0)
+		_add_param_row("每次提升", "+%.2f" % info.get("per_stack", 0.0), GameTheme.COLOR_JOKER, true)
+	else:
+		# 获取当前等级下的参数贡献
+		var delta = joker.get_passive_modifiers({})
+		var dm    = delta.get("mult_add",      0.0)
+		var dcr   = delta.get("crit_rate_add", 0.0)
+		var dcm   = delta.get("crit_mult_add", 0.0)
+		var dsm   = delta.get("special_mult",  1.0)
 
-	_add_param_row("倍率加成",      "+%.2f" % dm,            Color(0.45, 0.85, 1.0, 1), dm != 0.0)
-	_add_param_row("暴击率加成",    "+%d%%" % int(dcr*100),  Color(1.0, 0.72, 0.10, 1), dcr != 0.0)
-	_add_param_row("暴击倍数加成",  "+%.1f" % dcm,           Color(1.0, 0.40, 0.10, 1), dcm != 0.0)
-	if dsm != 1.0:
-		_add_param_row("特殊倍率", "×%.2f" % dsm, Color(0.90, 0.45, 1.0, 1), true)
+		_add_param_row("倍率加成",      "+%.2f" % dm,            GameTheme.COLOR_BLUE_CHIP, dm != 0.0)
+		_add_param_row("暴击率加成",    "+%d%%" % int(dcr*100),  Color(1.0, 0.72, 0.10, 1), dcr != 0.0)
+		_add_param_row("暴击倍数加成",  "+%.1f" % dcm,           Color(1.0, 0.40, 0.10, 1), dcm != 0.0)
+		if dsm != 1.0:
+			_add_param_row("特殊倍率", "×%.2f" % dsm, GameTheme.COLOR_JOKER, true)
 
 	# 升级后预览（若未满级）
 	var cost = joker.get_upgrade_cost()
@@ -402,7 +453,7 @@ func _show_joker_detail(joker):
 		var hint = Label.new()
 		hint.text = "升级 Lv%d → Lv%d 需要 💰%d（在商店升级）" % [joker.level, joker.level + 1, cost]
 		hint.add_theme_font_size_override("font_size", 11)
-		hint.add_theme_color_override("font_color", Color(0.55, 0.65, 0.75, 1))
+		hint.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		joker_detail_params.add_child(hint)
 
@@ -414,7 +465,7 @@ func _add_param_row(param_name: String, value_str: String, color: Color, active:
 
 	var nm = Label.new(); nm.text = param_name; nm.custom_minimum_size = Vector2(110, 0)
 	nm.add_theme_font_size_override("font_size", 13)
-	nm.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 1))
+	nm.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 	row.add_child(nm)
 
 	var vl = Label.new(); vl.text = value_str
@@ -440,12 +491,13 @@ func _make_consumable_card(cons) -> Control:
 	var name_s  = cons.resource_data.get("display_name", "?")
 	var rarity  = cons.resource_data.get("rarity", 0)
 	var desc_s  = cons.resource_data.get("description", "")
-	var color   = Color(1.0, 0.72, 0.10, 1) if rarity == 1 else Color(0.30, 0.85, 0.70, 1)
+	var color   = GameTheme.COLOR_RARE if rarity == 1 else GameTheme.COLOR_ACCENT
 
-	var panel = PanelContainer.new(); panel.custom_minimum_size = Vector2(70, 0)
+	var panel = PanelContainer.new(); panel.custom_minimum_size = Vector2(74, 54)
+	panel.tooltip_text = "%s\n%s" % [name_s, desc_s]
 	var ps = StyleBoxFlat.new()
-	ps.bg_color = color * 0.11; ps.border_color = color * 0.50
-	ps.set_border_width_all(1); ps.set_corner_radius_all(7)
+	ps.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.16); ps.border_color = color.darkened(0.05)
+	ps.set_border_width_all(2); ps.set_corner_radius_all(6)
 	ps.content_margin_left = 4; ps.content_margin_right = 4
 	ps.content_margin_top  = 4; ps.content_margin_bottom = 4
 	panel.add_theme_stylebox_override("panel", ps)
@@ -453,19 +505,21 @@ func _make_consumable_card(cons) -> Control:
 	var vb = VBoxContainer.new(); vb.add_theme_constant_override("separation", 2); panel.add_child(vb)
 
 	var icon = Label.new(); icon.text = "✨" if rarity == 1 else "🧪"
-	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; icon.add_theme_font_size_override("font_size", 14)
+	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; icon.add_theme_font_size_override("font_size", 13)
+	icon.tooltip_text = panel.tooltip_text
 	vb.add_child(icon)
 
 	var nm = Label.new(); nm.text = name_s
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; nm.add_theme_font_size_override("font_size", 10)
 	nm.add_theme_color_override("font_color", color)
-	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nm.tooltip_text = desc_s; vb.add_child(nm)
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nm.tooltip_text = panel.tooltip_text; vb.add_child(nm)
 
-	var use_btn = Button.new(); use_btn.custom_minimum_size = Vector2(0, 22); use_btn.text = "使用"
-	use_btn.add_theme_font_size_override("font_size", 11)
+	var use_btn = Button.new(); use_btn.custom_minimum_size = Vector2(0, 18); use_btn.text = "使用"
+	use_btn.tooltip_text = panel.tooltip_text
+	use_btn.add_theme_font_size_override("font_size", 10)
 	var bs = StyleBoxFlat.new()
-	bs.bg_color = color * 0.20; bs.border_color = color; bs.set_border_width_all(1); bs.set_corner_radius_all(5)
-	var bh = bs.duplicate(); bh.bg_color = color * 0.40
+	bs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.24); bs.border_color = color; bs.set_border_width_all(2); bs.set_corner_radius_all(5)
+	var bh = bs.duplicate(); bh.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.42)
 	use_btn.add_theme_stylebox_override("normal", bs); use_btn.add_theme_stylebox_override("hover", bh)
 	use_btn.add_theme_color_override("font_color", color)
 	use_btn.add_theme_color_override("font_hover_color", Color.WHITE)
@@ -498,16 +552,19 @@ func _on_play_pressed():
 	if RoundManager.plays_left <= 0: return
 
 	play_button.disabled = true; discard_button.disabled = true
+	var played_cards = []
+	for idx in _selected_indices:
+		played_cards.append(DeckManager.hand[idx])
 
 	var result = await RoundManager.play_hand(
 		_selected_indices.duplicate(), _used_consumable_ids.duplicate()
 	)
 
 	# ── 先播完计算过程动画，再推进阶段 ──
-	await _show_calc_animation(result)
+	await _show_calc_animation(result, played_cards)
 
 	_clear_used_consumables()
-	_rebuild_hand(); _rebuild_consumables(); _update_ui()
+	_rebuild_hand(); _rebuild_consumables(); _update_ui(); _reset_inline_calc()
 	play_button.disabled    = RoundManager.plays_left <= 0
 	discard_button.disabled = RoundManager.discards_left <= 0
 
@@ -524,34 +581,56 @@ func _on_discard_pressed():
 # ════════════════════════════════════════════════════════════════
 # 计算过程动画
 # ════════════════════════════════════════════════════════════════
-func _show_calc_animation(result: Dictionary):
-	# 准备浮层
+func _show_calc_animation(result: Dictionary, played_cards: Array = []):
+	# 直接在牌桌中间展示计算过程，不再打开独立弹窗。
 	for child in calc_steps_list.get_children(): child.queue_free()
+	for child in played_area.get_children(): child.queue_free()
+	for card in played_cards:
+		played_area.add_child(_make_table_card(card))
+	calc_title.text = ""
+	formula_label.text = ""
 	final_score_label.text = ""
+	score_burst_label.text = ""
 	crit_banner.visible    = false
 	calc_close_hint.visible = false
-	calc_overlay.visible   = true
-	_calc_waiting          = false
 
 	var steps    = result.get("steps", [])
 	var base_s   = result.get("snapshot", {}).get("base_score", 0)
 	var is_crit  = result.get("is_crit", false)
 	var cm       = result.get("crit_mult", 2.0)
 	var final_sc = result.get("score", 0)
+	var joker_step_index = 0
+	_base_score_preview = base_s
+	_apply_params_to_labels(1.0, 0.0, 2.0)
 
 	# 逐步展示
 	for i in range(steps.size()):
 		var step = steps[i]
 		await get_tree().create_timer(0.28).timeout
-		_add_calc_step_row(step, base_s)
+		var step_type = step.get("type", "")
+		if step_type == "consumable" or step_type == "remain_boost":
+			_apply_params_to_labels(
+				step.get("mult", 1.0),
+				step.get("crit_rate", 0.0),
+				step.get("crit_mult", 2.0)
+			)
+		elif step_type == "joker":
+			await _bounce_joker_badge(joker_step_index)
+			joker_step_index += 1
+			_apply_params_to_labels(
+				step.get("mult", 1.0),
+				step.get("crit_rate", 0.0),
+				step.get("crit_mult", 2.0)
+			)
 
 	# 显示公式结果
 	await get_tree().create_timer(0.3).timeout
 	var mult = result.get("mult", 1.0)
 	var pre_crit = int(float(base_s) * mult)
+	score_burst_label.text = "+%d" % final_sc
+	score_burst_label.modulate.a = 1.0
+	score_burst_label.scale = Vector2.ONE
 	if is_crit:
-		final_score_label.text = "%d × %.2f = %d" % [base_s, mult, pre_crit]
-		final_score_label.add_theme_color_override("font_color", Color(0.35, 1.0, 0.55, 1))
 		await get_tree().create_timer(0.4).timeout
 		# 暴击膨胀
 		crit_banner.text    = "💥 CRIT!  ×%.1f 暴击膨胀！" % cm
@@ -560,22 +639,58 @@ func _show_calc_animation(result: Dictionary):
 		tween.tween_property(crit_banner, "scale", Vector2(1.35, 1.35), 0.18).set_ease(Tween.EASE_OUT)
 		tween.tween_property(crit_banner, "scale", Vector2(1.0,  1.0),  0.14).set_ease(Tween.EASE_IN)
 		await get_tree().create_timer(0.38).timeout
-		final_score_label.text = "🏆  最终得分：%d" % final_sc
-		final_score_label.add_theme_color_override("font_color", Color(1.0, 0.45, 0.10, 1))
-		final_score_label.add_theme_font_size_override("font_size", 32)
 	else:
-		final_score_label.text = "%d × %.2f = %d" % [base_s, mult, final_sc]
-		final_score_label.add_theme_font_size_override("font_size", 28)
+		await get_tree().create_timer(0.2).timeout
 
-	await get_tree().create_timer(0.5).timeout
-	calc_close_hint.visible = true
-	_calc_waiting           = true
-
-	# 等待玩家点击关闭
-	await _wait_for_calc_close()
-	calc_overlay.visible  = false
+	await get_tree().create_timer(0.45).timeout
 	calc_close_hint.visible = false
-	_calc_waiting         = false
+	await _fade_score_burst()
+
+func _bounce_joker_badge(index: int):
+	if index < 0 or index >= _joker_badge_nodes.size():
+		return
+	var node = _joker_badge_nodes[index]
+	if not is_instance_valid(node):
+		return
+	var original_pos = node.position
+	var original_scale = node.scale
+	var tw = create_tween()
+	tw.tween_property(node, "position:y", original_pos.y - 14, 0.10).set_ease(Tween.EASE_OUT)
+	tw.parallel().tween_property(node, "scale", original_scale * 1.12, 0.10).set_ease(Tween.EASE_OUT)
+	tw.tween_property(node, "position:y", original_pos.y, 0.12).set_ease(Tween.EASE_IN)
+	tw.parallel().tween_property(node, "scale", original_scale, 0.12).set_ease(Tween.EASE_IN)
+	await tw.finished
+
+func _reset_inline_calc():
+	for child in calc_steps_list.get_children():
+		child.queue_free()
+	for child in played_area.get_children():
+		child.queue_free()
+	calc_title.text = ""
+	formula_label.text = ""
+	final_score_label.text = ""
+	score_burst_label.text = ""
+	score_burst_label.modulate.a = 1.0
+	score_burst_label.scale = Vector2.ONE
+	crit_banner.visible = false
+	crit_banner.modulate.a = 1.0
+	calc_close_hint.visible = false
+
+func _fade_score_burst():
+	if score_burst_label.text == "":
+		return
+	var tw = create_tween()
+	tw.tween_property(score_burst_label, "scale", Vector2(1.12, 1.12), 0.12).set_ease(Tween.EASE_OUT)
+	tw.tween_interval(0.25)
+	tw.tween_property(score_burst_label, "modulate:a", 0.0, 0.28).set_ease(Tween.EASE_IN)
+	if crit_banner.visible:
+		tw.parallel().tween_property(crit_banner, "modulate:a", 0.0, 0.20)
+	await tw.finished
+	score_burst_label.text = ""
+	score_burst_label.modulate.a = 1.0
+	score_burst_label.scale = Vector2.ONE
+	crit_banner.visible = false
+	crit_banner.modulate.a = 1.0
 
 func _add_calc_step_row(step: Dictionary, base_score: int):
 	var row = HBoxContainer.new()
@@ -583,10 +698,10 @@ func _add_calc_step_row(step: Dictionary, base_score: int):
 	calc_steps_list.add_child(row)
 
 	var type = step.get("type", "")
-	var icon_lbl = Label.new(); icon_lbl.add_theme_font_size_override("font_size", 15)
-	var name_lbl = Label.new(); name_lbl.add_theme_font_size_override("font_size", 13); name_lbl.size_flags_horizontal = 3
-	var delta_lbl = Label.new(); delta_lbl.add_theme_font_size_override("font_size", 13)
-	var result_lbl = Label.new(); result_lbl.add_theme_font_size_override("font_size", 13)
+	var icon_lbl = Label.new(); icon_lbl.add_theme_font_size_override("font_size", 13)
+	var name_lbl = Label.new(); name_lbl.add_theme_font_size_override("font_size", 12); name_lbl.size_flags_horizontal = 3
+	var delta_lbl = Label.new(); delta_lbl.add_theme_font_size_override("font_size", 12)
+	var result_lbl = Label.new(); result_lbl.add_theme_font_size_override("font_size", 12)
 
 	match type:
 		"base":
@@ -596,12 +711,12 @@ func _add_calc_step_row(step: Dictionary, base_score: int):
 			delta_lbl.text = "基础分 %d" % base_score
 			delta_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 1))
 			result_lbl.text = "×1.00"
-			result_lbl.add_theme_color_override("font_color", Color(0.45, 0.85, 1.0, 1))
+			result_lbl.add_theme_color_override("font_color", GameTheme.COLOR_BLUE_CHIP)
 		"joker":
 			icon_lbl.text = "🎭"
 			var lv = step.get("level", 1)
 			name_lbl.text = "%s (Lv%d)" % [step.get("label", "小丑"), lv]
-			name_lbl.add_theme_color_override("font_color", Color(0.75, 0.45, 1.0, 1))
+			name_lbl.add_theme_color_override("font_color", GameTheme.COLOR_JOKER)
 			var d = step.get("delta", {})
 			var parts = []
 			if d.get("mult_add",0.0) != 0.0:      parts.append("倍率+%.2f" % d.get("mult_add",0.0))
@@ -612,26 +727,11 @@ func _add_calc_step_row(step: Dictionary, base_score: int):
 			result_lbl.text = "→ ×%.2f" % step.get("mult", 1.0)
 			result_lbl.add_theme_color_override("font_color", Color(0.90, 1.00, 0.40, 1))
 		"consumable":
-			icon_lbl.text = "✨"
-			name_lbl.text = step.get("label", "道具")
-			name_lbl.add_theme_color_override("font_color", Color(1.0, 0.72, 0.10, 1))
-			var d = step.get("delta", {})
-			var parts = []
-			if d.get("mult_factor",1.0) != 1.0:   parts.append("倍率×%.1f" % d.get("mult_factor",1.0))
-			if d.get("mult_add",0.0) != 0.0:       parts.append("倍率+%.2f" % d.get("mult_add",0.0))
-			if d.get("crit_rate_add",0.0) != 0.0:  parts.append("暴击率+%d%%" % int(d.get("crit_rate_add",0.0)*100))
-			if d.get("crit_mult_add",0.0) != 0.0:  parts.append("暴击倍+%.1f" % d.get("crit_mult_add",0.0))
-			delta_lbl.text = "  ".join(parts) if parts else "无效果"
-			delta_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.55, 1))
-			result_lbl.text = "→ ×%.2f" % step.get("mult", 1.0)
-			result_lbl.add_theme_color_override("font_color", Color(0.90, 1.00, 0.40, 1))
+			row.queue_free()
+			return
 		"remain_boost":
-			icon_lbl.text = "🃏"
-			name_lbl.text = step.get("label", "余牌加持")
-			name_lbl.add_theme_color_override("font_color", Color(0.50, 1.00, 0.80, 1))
-			delta_lbl.text = ""
-			result_lbl.text = "→ ×%.2f" % step.get("mult", 1.0)
-			result_lbl.add_theme_color_override("font_color", Color(0.90, 1.00, 0.40, 1))
+			row.queue_free()
+			return
 
 	row.add_child(icon_lbl)
 	row.add_child(name_lbl)
@@ -642,17 +742,6 @@ func _add_calc_step_row(step: Dictionary, base_score: int):
 	row.modulate.a = 0.0
 	var tw = create_tween()
 	tw.tween_property(row, "modulate:a", 1.0, 0.20)
-
-var _calc_close_signal = false
-
-func _wait_for_calc_close():
-	await _calc_close_event
-
-signal _calc_close_event()
-
-func _on_calc_bg_input(event: InputEvent):
-	if _calc_waiting and event is InputEventMouseButton and event.pressed:
-		_calc_close_event.emit()
 
 # ════════════════════════════════════════════════════════════════
 # 提示 / 复活
