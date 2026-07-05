@@ -63,7 +63,11 @@ public class ConfigService implements CommandLineRunner {
     @SuppressWarnings("unchecked")
     private ItemDTO toItemDTO(ItemConfig ic) {
         try {
-            return objectMapper.readValue(ic.getConfigData(), ItemDTO.class);
+            com.fasterxml.jackson.databind.ObjectMapper snakeMapper = new com.fasterxml.jackson.databind.ObjectMapper();
+            snakeMapper.setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE);
+            ItemDTO dto = snakeMapper.readValue(ic.getConfigData(), ItemDTO.class);
+            dto.setId(ic.getItemId());
+            return dto;
         } catch (Exception e) {
             log.warn("Failed to parse item config: id={}", ic.getItemId(), e);
             return ItemDTO.builder().id(ic.getItemId()).build();
