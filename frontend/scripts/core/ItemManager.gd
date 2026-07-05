@@ -5,6 +5,8 @@ var jokers: Array = []
 var consumables: Array = []
 var _registered_items: Dictionary = {}  # id -> item_data
 
+const CONSUMABLE_LIMIT := 3
+
 # ---- 初始化 ----
 func reset():
 	jokers.clear()
@@ -26,6 +28,8 @@ func get_item_data(id: String) -> Dictionary:
 func buy_item(item_data: Dictionary) -> bool:
 	var price = item_data.get("price", 0)
 	if RoundManager.game_coins < price: return false
+	if item_data.get("item_type", 1) != 0 and not can_add_consumable():
+		return false
 	RoundManager.game_coins -= price
 
 	var effect = _create_effect(item_data)
@@ -34,6 +38,12 @@ func buy_item(item_data: Dictionary) -> bool:
 	else:
 		consumables.append(effect)
 	return true
+
+func can_add_consumable() -> bool:
+	return consumables.size() < CONSUMABLE_LIMIT
+
+func get_consumable_limit() -> int:
+	return CONSUMABLE_LIMIT
 
 func get_active_joker_states() -> Array:
 	return jokers

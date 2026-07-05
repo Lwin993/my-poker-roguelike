@@ -31,8 +31,8 @@ GameTheme="*res://scripts/core/GameTheme.gd"
 
 [display]
 
-window/size/viewport_width=480
-window/size/viewport_height=854
+window/size/viewport_width=960
+window/size/viewport_height=540
 window/size/resizable=true
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"

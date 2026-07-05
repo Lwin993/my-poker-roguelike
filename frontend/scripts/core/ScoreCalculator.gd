@@ -1,6 +1,9 @@
 # ScoreCalculator.gd - Autoload 分数计算器
 extends Node
 
+# ----------------------------------------------------------------
+# 核心计算 — 每次调用独立，不产生任何副作用
+# ----------------------------------------------------------------
 func calculate(
 	hand_result: Dictionary,
 	joker_states: Array,
@@ -8,63 +11,165 @@ func calculate(
 	remaining_hand: Array
 ) -> Dictionary:
 
-	var base       = float(hand_result.base_score)
-	var mult       = 1.0
-	var crit_rate  = 0.0
-	var crit_mult  = 2.0
-	var special_mult = 1.0
+	var result_data  = _build_steps(hand_result, joker_states, active_consumables, remaining_hand)
+	var final_params = result_data.get("params", {})
 
-	# 1. 小丑牌被动修正
-	for js in joker_states:
-		var delta = js.get_passive_modifiers(hand_result)
-		mult        += delta.get("mult_add", 0.0)
-		crit_rate   += delta.get("crit_rate_add", 0.0)
-		crit_mult   += delta.get("crit_mult_add", 0.0)
-		special_mult *= delta.get("special_mult", 1.0)
+	var base         = float(hand_result.get("base_score", 0))
+	var mult         = final_params.get("mult",         1.0)
+	var crit_rate    = final_params.get("crit_rate",    0.0)
+	var crit_mult    = final_params.get("crit_mult",    2.0)
+	var special_mult = final_params.get("special_mult", 1.0)
 
-	# 2. 冲分道具修正
-	for item in active_consumables:
-		var delta = item.get_score_modifiers()
-		mult        *= delta.get("mult_factor", 1.0)
-		mult        += delta.get("mult_add", 0.0)
-		crit_rate   += delta.get("crit_rate_add", 0.0)
-		crit_mult   += delta.get("crit_mult_add", 0.0)
-
-	# 3. 余牌加持（稀有道具）
-	var has_remain_boost = false
-	for item in active_consumables:
-		if item.resource_data.get("id", "") == "remaining_boost":
-			has_remain_boost = true
-			break
-
-	if has_remain_boost and remaining_hand.size() > 0:
-		var max_rank = 0
-		for c in remaining_hand:
-			if c.rank > max_rank: max_rank = c.rank
-		var effective = max_rank
-		if max_rank == 1: effective = 14  # A 当最高
-		mult += float(effective)
-
-	# 4. 暴击判断
 	var is_crit = randf() < clampf(crit_rate, 0.0, 1.0)
 
-	# 5. 最终分
 	var score = base * mult
 	if is_crit: score *= crit_mult
 	score *= special_mult
 
 	return {
-		"score": int(score),
-		"is_crit": is_crit,
-		"mult": mult,
-		"crit_mult": crit_mult if is_crit else 1.0,
+		"score":        int(score),
+		"is_crit":      is_crit,
+		"mult":         mult,
+		"crit_rate":    crit_rate,
+		"crit_mult":    crit_mult,
 		"special_mult": special_mult,
+		"steps":        result_data.get("steps", []),
 		"snapshot": {
-			"hand_rank": hand_result.rank,
-			"base_score": hand_result.base_score,
-			"mult": snappedf(mult, 0.0001),
-			"is_crit": is_crit,
-			"crit_mult": snappedf(crit_mult, 0.0001),
+			"hand_rank":    hand_result.get("rank", 0),
+			"base_score":   hand_result.get("base_score", 0),
+			"mult":         snappedf(mult, 0.0001),
+			"crit_rate":    snappedf(crit_rate, 0.0001),
+			"crit_mult":    snappedf(crit_mult, 0.0001),
 			"special_mult": snappedf(special_mult, 0.0001),
+			"is_crit":      is_crit,
 		}
+	}
+
+# ----------------------------------------------------------------
+# 预览参数 — 供 UI 实时展示，不触发随机暴击
+# ----------------------------------------------------------------
+func preview_params(
+	hand_result: Dictionary,
+	joker_states: Array,
+	active_consumables: Array,
+	remaining_hand: Array
+) -> Dictionary:
+	var result = _build_steps(hand_result, joker_states, active_consumables, remaining_hand)
+	return result.get("params", {"mult": 1.0, "crit_rate": 0.0, "crit_mult": 2.0, "special_mult": 1.0})
+
+# ----------------------------------------------------------------
+# 逐步构建 — 返回 { params: {...}, steps: [...] }
+# ----------------------------------------------------------------
+func _build_steps(
+	hand_result: Dictionary,
+	joker_states: Array,
+	active_consumables: Array,
+	remaining_hand: Array
+) -> Dictionary:
+
+	var base_score   = hand_result.get("base_score", 0)
+	var mult         = 1.0
+	var crit_rate    = 0.0
+	var crit_mult    = 2.0
+	var special_mult = 1.0
+	var steps: Array = []
+
+	# Step 0：基础牌型（只有实际有牌型时才加入 step）
+	if base_score > 0:
+		steps.append({
+			"type":       "base",
+			"label":      hand_result.get("hand_name", ""),
+			"base_score": base_score,
+			"mult":       mult,
+			"crit_rate":  crit_rate,
+			"crit_mult":  crit_mult,
+			"partial":    base_score,
+			"delta":      {},
+		})
+
+	# Step 1~M：冲分道具先直接改变本次参数
+	for item in active_consumables:
+		var delta = item.get_score_modifiers()
+		var mf    = delta.get("mult_factor",   1.0)
+		var ma    = delta.get("mult_add",      0.0)
+		var dcr   = delta.get("crit_rate_add", 0.0)
+		var dcm   = delta.get("crit_mult_add", 0.0)
+
+		mult      *= mf
+		mult      += ma
+		crit_rate += dcr
+		crit_mult += dcm
+
+		steps.append({
+			"type":      "consumable",
+			"label":     item.resource_data.get("display_name", "?"),
+			"mult":      mult,
+			"crit_rate": crit_rate,
+			"crit_mult": crit_mult,
+			"partial":   base_score * mult,
+			"delta":     {
+				"mult_factor":   mf,
+				"mult_add":      ma,
+				"crit_rate_add": dcr,
+				"crit_mult_add": dcm,
+			},
+		})
+
+	# 余牌加持
+	for item in active_consumables:
+		if item.resource_data.get("id", "") == "remaining_boost":
+			if remaining_hand.size() > 0:
+				var max_rank = 0
+				for c in remaining_hand:
+					if c.rank > max_rank: max_rank = c.rank
+				var effective = 14 if max_rank == 1 else max_rank
+				mult += float(effective)
+				steps.append({
+					"type":      "remain_boost",
+					"label":     "余牌加持(+%d)" % effective,
+					"mult":      mult,
+					"crit_rate": crit_rate,
+					"crit_mult": crit_mult,
+					"partial":   base_score * mult,
+					"delta":     {"mult_add": float(effective)},
+				})
+			break
+
+	# Step M+1~N：每张小丑牌按顺序触发
+	for js in joker_states:
+		var delta = js.get_passive_modifiers(hand_result)
+		var dm    = delta.get("mult_add",      0.0)
+		var dcr   = delta.get("crit_rate_add", 0.0)
+		var dcm   = delta.get("crit_mult_add", 0.0)
+		var dsm   = delta.get("special_mult",  1.0)
+
+		mult         += dm
+		crit_rate    += dcr
+		crit_mult    += dcm
+		special_mult *= dsm
+
+		steps.append({
+			"type":      "joker",
+			"label":     js.resource_data.get("display_name", "?"),
+			"level":     js.level,
+			"mult":      mult,
+			"crit_rate": crit_rate,
+			"crit_mult": crit_mult,
+			"partial":   base_score * mult,
+			"delta":     {
+				"mult_add":      dm,
+				"crit_rate_add": dcr,
+				"crit_mult_add": dcm,
+				"special_mult":  dsm,
+			},
+		})
+
+	return {
+		"params": {
+			"mult":         mult,
+			"crit_rate":    clampf(crit_rate, 0.0, 1.0),
+			"crit_mult":    crit_mult,
+			"special_mult": special_mult,
+		},
+		"steps": steps,
 	}

@@ -14,7 +14,7 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.05, 0.08, 0.12, 1)
+color = Color(0.18, 0.035, 0.055, 1)
 
 [node name="Center" type="CenterContainer" parent="."]
 layout_mode = 1
@@ -39,7 +39,7 @@ layout_mode = 2
 text = "游戏结束！"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 28
-theme_override_colors/font_color = Color(0.92, 0.95, 1.0, 1)
+theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
 
 [node name="ScoreContainer" type="PanelContainer" parent="Center/VBox"]
 layout_mode = 2
@@ -53,7 +53,7 @@ layout_mode = 2
 text = "最终总分: 0"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 32
-theme_override_colors/font_color = Color(0.35, 1.0, 0.55, 1)
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="RankRow" type="HBoxContainer" parent="Center/VBox/ScoreContainer/ScoreVBox"]
 layout_mode = 2
@@ -64,13 +64,13 @@ theme_override_constants/separation = 20
 layout_mode = 2
 text = "全服排名: --"
 theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(0.65, 0.75, 1.0, 1)
+theme_override_colors/font_color = Color(0.23, 0.58, 1.0, 1)
 
 [node name="FriendRankLabel" type="Label" parent="Center/VBox/ScoreContainer/ScoreVBox/RankRow"]
 layout_mode = 2
 text = "好友排名: --"
 theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(0.45, 0.95, 0.75, 1)
+theme_override_colors/font_color = Color(0.0, 0.86, 0.72, 1)
 
 [node name="RewardContainer" type="PanelContainer" parent="Center/VBox"]
 layout_mode = 2
@@ -84,14 +84,14 @@ layout_mode = 2
 text = "🎁  恭喜获得"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 15
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
 [node name="RewardName" type="Label" parent="Center/VBox/RewardContainer/RewardVBox"]
 layout_mode = 2
 text = "参与奖"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 26
-theme_override_colors/font_color = Color(1.0, 0.72, 0.10, 1)
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="TierList" type="VBoxContainer" parent="Center/VBox"]
 layout_mode = 2
@@ -101,7 +101,7 @@ theme_override_constants/separation = 4
 layout_mode = 2
 text = "分数档位一览"
 theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.55, 0.65, 0.75, 1)
+theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 horizontal_alignment = 1
 
 [node name="TierItems" type="VBoxContainer" parent="Center/VBox/TierList"]

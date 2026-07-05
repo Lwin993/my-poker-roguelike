@@ -10,8 +10,8 @@ extends Control
 @onready var menu_button       = $Center/VBox/ButtonRow/MenuButton
 
 func _ready():
-	_style_button(play_again_button, Color(0.20, 0.80, 0.60, 1))
-	_style_button(menu_button, Color(0.55, 0.65, 0.75, 1))
+	_style_button(play_again_button, GameTheme.COLOR_ACCENT)
+	_style_button(menu_button, GameTheme.COLOR_BLUE_CHIP)
 
 	play_again_button.pressed.connect(_on_play_again)
 	menu_button.pressed.connect(_on_menu)
@@ -19,15 +19,11 @@ func _ready():
 	_build_tier_list()
 
 func _style_button(btn: Button, color: Color):
-	var s = StyleBoxFlat.new()
-	s.bg_color = color * 0.22
-	s.border_color = color
-	s.set_border_width_all(2)
-	s.set_corner_radius_all(10)
-	var h = s.duplicate(); h.bg_color = color * 0.38
+	var s = GameTheme.get_button_style(color)
+	var h = GameTheme.get_button_hover_style(color)
 	btn.add_theme_stylebox_override("normal", s)
 	btn.add_theme_stylebox_override("hover", h)
-	btn.add_theme_color_override("font_color", color)
+	btn.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_MAIN)
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 func show_result():
@@ -54,20 +50,20 @@ func _on_result_received(data: Dictionary):
 
 func _set_reward_color(reward_type: String):
 	match reward_type:
-		"rare":    reward_name.add_theme_color_override("font_color", Color(1.0, 0.40, 0.10, 1))
-		"coupon":  reward_name.add_theme_color_override("font_color", Color(0.95, 0.75, 0.10, 1))
-		"drink":   reward_name.add_theme_color_override("font_color", Color(0.30, 0.85, 0.70, 1))
-		_:         reward_name.add_theme_color_override("font_color", Color(0.65, 0.70, 0.80, 1))
+		"rare":    reward_name.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
+		"coupon":  reward_name.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+		"drink":   reward_name.add_theme_color_override("font_color", GameTheme.COLOR_ACCENT)
+		_:         reward_name.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 
 func _build_tier_list():
 	for child in tier_items.get_children():
 		child.queue_free()
 
 	const TIER_COLORS = {
-		"rare": Color(1.0, 0.40, 0.10, 1),
-		"coupon": Color(0.95, 0.75, 0.10, 1),
-		"drink": Color(0.30, 0.85, 0.70, 1),
-		"digital": Color(0.65, 0.70, 0.80, 1),
+		"rare": GameTheme.COLOR_CRIT,
+		"coupon": GameTheme.COLOR_GOLD,
+		"drink": GameTheme.COLOR_ACCENT,
+		"digital": GameTheme.COLOR_TEXT_DIM,
 	}
 
 	for tier in ConfigLoader.reward_tiers:
