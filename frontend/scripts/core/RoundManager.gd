@@ -76,12 +76,15 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 	var remaining    = DeckManager.hand
 
 	var hand_result = HandEvaluator.evaluate(played_cards)
+
+	# 收集本次已激活道具效果对象（先收集，后计算，最后消耗）
 	var active_items = []
 	for id in active_consumable_ids:
 		var item = ItemManager.get_consumable_by_id(id)
 		if item:
 			active_items.append(item)
 
+	# 纯函数计算，不修改任何小丑牌/道具状态
 	var score_result = ScoreCalculator.calculate(
 		hand_result,
 		ItemManager.get_active_joker_states(),
@@ -89,13 +92,14 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 		remaining
 	)
 
+	# 计算完毕后道具消失
+	for id in active_consumable_ids:
+		ItemManager.consume_item(id)
+
 	var gained = score_result.score
 	round_score += gained
 	total_score += gained
 	plays_left  -= 1
-
-	for id in active_consumable_ids:
-		ItemManager.consume_item(id)
 
 	play_log.append({
 		"round": current_round,
@@ -111,14 +115,19 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 	score_updated.emit(round_score, total_score)
 	play_result_received.emit(score_result)
 
+	# 不在此处推进阶段——由 UI 动画播完后调用 advance_after_play()
 	var threshold = thresholds[current_round][current_blind]
-	if round_score >= threshold:
-		await get_tree().create_timer(1.2).timeout
-		_on_blind_cleared()
-	elif plays_left == 0:
-		round_failed.emit(current_round, current_blind)
+	score_result["blind_cleared"] = (round_score >= threshold)
+	score_result["out_of_plays"]  = (plays_left == 0 and round_score < threshold)
 
 	return score_result
+
+# UI 动画结束后调用，真正推进阶段
+func advance_after_play(score_result: Dictionary):
+	if score_result.get("blind_cleared", false):
+		_on_blind_cleared()
+	elif score_result.get("out_of_plays", false):
+		round_failed.emit(current_round, current_blind)
 
 func discard_cards(selected_indices: Array) -> bool:
 	if discards_left <= 0: return false
