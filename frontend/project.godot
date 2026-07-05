@@ -1,0 +1,43 @@
+; Engine configuration file.
+; It's best edited using the editor UI and not directly,
+; but the tooling script can be helpful for programmatic changes.
+; gdformat: disable
+
+[configuration]
+
+config_version=5
+
+[application]
+
+config/name="Poker Roguelike"
+config/description="轻量级小丑牌 Roguelike 游戏"
+config/version="1.0.0"
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.7", "GL Compatibility")
+config/icon="res://icon.svg"
+
+[autoload]
+
+DeckManager="*res://scripts/core/DeckManager.gd"
+HandEvaluator="*res://scripts/core/HandEvaluator.gd"
+ScoreCalculator="*res://scripts/core/ScoreCalculator.gd"
+ItemManager="*res://scripts/core/ItemManager.gd"
+ConfigLoader="*res://scripts/core/ConfigLoader.gd"
+RoundManager="*res://scripts/core/RoundManager.gd"
+GameState="*res://scripts/core/GameState.gd"
+JSBridge="*res://scripts/net/JSBridge.gd"
+GameAPI="*res://scripts/net/GameAPI.gd"
+GameTheme="*res://scripts/core/GameTheme.gd"
+
+[display]
+
+window/size/viewport_width=480
+window/size/viewport_height=854
+window/size/resizable=true
+window/stretch/mode="canvas_items"
+window/stretch/aspect="expand"
+
+[rendering]
+
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
