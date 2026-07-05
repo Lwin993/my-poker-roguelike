@@ -1,0 +1,20 @@
+# IDE
+.idea/
+*.iml
+
+# CodeFlicker
+.codeflicker/
+
+# OS
+.DS_Store
+*.swp
+*.swo
+
+# Java
+*.class
+target/
+*.jar
+*.war
+
+# Logs
+*.log
