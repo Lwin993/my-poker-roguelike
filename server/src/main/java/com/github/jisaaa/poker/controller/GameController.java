@@ -127,13 +127,23 @@ public class GameController {
 
     private Map<String, Object> buildRoundConfig() {
         Map<String, Object> config = new HashMap<>();
-        config.put("thresholds", configService.getConfig("round_thresholds"));
-        config.put("coin_rewards", configService.getConfig("coin_rewards"));
+        config.put("thresholds", configService.getConfigAsJson("round_thresholds"));
+        config.put("coin_rewards", configService.getConfigAsJson("coin_rewards"));
         config.put("max_revives", configService.getIntConfig("max_revives", 3));
         return config;
     }
 
     private List<Map<String, Object>> buildRewardConfig() {
-        return List.of(); // Simplified: client gets this from submit_result response
+        List<RewardTier> tiers = rewardService.getAllTiers();
+        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        for (RewardTier t : tiers) {
+            Map<String, Object> tierMap = new HashMap<>();
+            tierMap.put("min_score", t.getMinScore());
+            tierMap.put("max_score", t.getMaxScore());
+            tierMap.put("reward_name", t.getRewardName());
+            tierMap.put("reward_type", t.getRewardType());
+            result.add(tierMap);
+        }
+        return result;
     }
 }

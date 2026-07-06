@@ -36,6 +36,10 @@ public class RewardService {
         return tierMapper.selectByScore(score);
     }
 
+    public List<RewardTier> getAllTiers() {
+        return tierMapper.selectDistinctByName();
+    }
+
     @Transactional
     public ClaimResult claim(String userId, Long sessionId) {
         // 1. Prevent duplicate

@@ -78,6 +78,10 @@ func _ready():
 	revive_dialog.confirmed.connect(_on_revive_ad)
 	revive_dialog.canceled.connect(_on_give_up)
 
+	# Connect revive API signals
+	GameAPI.revive_prepared.connect(_on_revive_prepared)
+	GameAPI.revive_completed.connect(_on_revive_completed)
+
 	# 排序按钮
 	_style_sort_button(sort_by_rank_btn, Color(0.45, 0.75, 1.00, 1))
 	_style_sort_button(sort_by_suit_btn, Color(0.55, 0.85, 0.55, 1))
@@ -533,6 +537,9 @@ func _on_consumable_used(item_id: String, cons, panel: Control):
 	if _used_consumable_ids.has(item_id): return
 	_used_consumable_ids.append(item_id)
 	_used_consumable_items.append(cons)
+	# Apply special effects immediately on use (e.g., ExtraPlayTicket adds plays)
+	if cons.has_method("apply_special_effect"):
+		cons.apply_special_effect()
 	panel.queue_free()
 	_update_params_panel()
 	if _selected_indices.size() == 5:
@@ -764,7 +771,38 @@ func _on_round_failed(_round_idx: int, _blind_idx: int):
 		RoundManager.phase_changed.emit(RoundManager.Phase.FINAL_RESULT)
 
 func _on_revive_ad():
-	RoundManager.revive(); _refresh_all(); GameState.save_state()
+	# Call backend to prepare revive (get ad token)
+	GameAPI.revive_prepare()
+
+# Backend returned ad_callback_token
+func _on_revive_prepared(data: Dictionary):
+	var ad_token = data.get("ad_callback_token", "")
+	if ad_token == "":
+		push_warning("revive_prepare returned no ad_token")
+		return
+	# Simulate ad watching locally, then confirm revive with backend
+	if OS.has_feature("web"):
+		# On web: JSBridge handles ad display, then dispatch("ad_complete", ...)
+		JSBridge.request_revive_ad()
+		# The JSBridge will emit revive_ad_completed when ad finishes
+		# We use a one-shot connection to proceed
+		JSBridge.revive_ad_completed.connect(func():
+			GameAPI.revive(ad_token)
+		, CONNECT_ONE_SHOT)
+	else:
+		# Local: simulate ad watch delay, then confirm revive
+		get_tree().create_timer(0.5).timeout.connect(func():
+			GameAPI.revive(ad_token)
+		)
+
+# Backend confirmed revive
+func _on_revive_completed(data: Dictionary):
+	var count = int(data.get("revive_count", 0))
+	RoundManager.revive_count = count
+	RoundManager._reset_blind()
+	RoundManager._set_phase(RoundManager.Phase.PLAYING)
+	_refresh_all()
+	GameState.save_state()
 
 func _on_give_up():
 	GameAPI.submit_result()

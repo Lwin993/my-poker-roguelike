@@ -23,6 +23,9 @@ func _ready():
 	# 预加载子场景
 	_load_sub_scenes()
 
+	# Connect GameAPI signals for async flow
+	GameAPI.game_started.connect(_on_game_started)
+
 	_show_panel(main_menu)
 
 func _load_sub_scenes():
@@ -48,7 +51,8 @@ func _load_sub_scenes():
 
 func _on_start_pressed():
 	GameAPI.start_game()
-	RoundManager.start_new_game()
+	# RoundManager.start_new_game() is deferred to _on_game_started callback
+	# after ConfigLoader has loaded configs from backend
 
 func _on_rules_pressed():
 	rules_dialog.popup_centered()
@@ -71,3 +75,9 @@ func _on_phase_changed(new_phase: int):
 func _show_panel(panel: Control):
 	for child in [main_menu, game_board, shop_node, result_screen]:
 		child.visible = (child == panel)
+
+# Callback when backend confirms game start
+func _on_game_started(data: Dictionary):
+	# ConfigLoader already loaded from GameAPI.start_game callback
+	# Now initialize game state with loaded configs
+	RoundManager.start_new_game()

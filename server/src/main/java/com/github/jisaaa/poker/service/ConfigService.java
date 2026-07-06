@@ -46,6 +46,22 @@ public class ConfigService implements CommandLineRunner {
         return configCache.get(key);
     }
 
+    /**
+     * Get config value parsed as JSON object (List or Map).
+     * Returns null if key not found or parse fails.
+     */
+    @SuppressWarnings("unchecked")
+    public Object getConfigAsJson(String key) {
+        String val = configCache.get(key);
+        if (val == null) return null;
+        try {
+            return objectMapper.readValue(val, Object.class);
+        } catch (Exception e) {
+            log.warn("Failed to parse config as JSON: key={}", key, e);
+            return null;
+        }
+    }
+
     public int getIntConfig(String key, int defaultValue) {
         String val = configCache.get(key);
         if (val == null) return defaultValue;
@@ -63,9 +79,7 @@ public class ConfigService implements CommandLineRunner {
     @SuppressWarnings("unchecked")
     private ItemDTO toItemDTO(ItemConfig ic) {
         try {
-            com.fasterxml.jackson.databind.ObjectMapper snakeMapper = new com.fasterxml.jackson.databind.ObjectMapper();
-            snakeMapper.setPropertyNamingStrategy(com.fasterxml.jackson.databind.PropertyNamingStrategies.SNAKE_CASE);
-            ItemDTO dto = snakeMapper.readValue(ic.getConfigData(), ItemDTO.class);
+            ItemDTO dto = objectMapper.readValue(ic.getConfigData(), ItemDTO.class);
             dto.setId(ic.getItemId());
             return dto;
         } catch (Exception e) {

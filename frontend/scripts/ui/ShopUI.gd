@@ -11,12 +11,17 @@ extends Control
 var _refresh_count: int = 0
 var _has_free_refresh: bool = false
 var _rare_boost: bool = false
+var _current_shop_node: int = 0
+var _pending_shop_items: Array = []  # items from API, waiting to render
 
 func _ready():
 	_style_button(continue_button, GameTheme.COLOR_ACCENT)
 	_style_button(refresh_button,  GameTheme.COLOR_BLUE_CHIP)
 	refresh_button.pressed.connect(_on_refresh_pressed)
 	continue_button.pressed.connect(_on_continue_pressed)
+	# Connect async signals from GameAPI
+	GameAPI.shop_items_loaded.connect(_on_shop_items_loaded)
+	GameAPI.buy_completed.connect(_on_buy_completed)
 
 func _style_button(btn: Button, color: Color):
 	var s = GameTheme.get_button_style(color)
@@ -61,11 +66,17 @@ func _update_header():
 func _load_shop_items():
 	for c in shop_grid.get_children(): c.queue_free()
 
-	var node = clamp(
+	_current_shop_node = clamp(
 		RoundManager.current_round * 2 + (RoundManager.current_blind - 1 if RoundManager.current_blind > 0 else 0),
 		0, 5
 	)
-	for item in GameAPI.get_shop_items(node, _rare_boost):
+	# Async: request from backend API
+	GameAPI.get_shop_items(_current_shop_node, _refresh_count)
+
+# Callback when shop items are loaded from API
+func _on_shop_items_loaded(items: Array):
+	for c in shop_grid.get_children(): c.queue_free()
+	for item in items:
 		shop_grid.add_child(_make_shop_card(item))
 
 func _make_shop_card(item_data: Dictionary) -> Control:
@@ -152,12 +163,11 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	return card
 
 func _on_buy_pressed(item_id: String, item_data: Dictionary):
-	if ItemManager.buy_item(item_data):
-		coins_label.text = "💰  %d" % RoundManager.game_coins
-		_rebuild_owned_panel()
-		_load_shop_items()
-		_update_refresh_button()
-		GameState.save_state()
+	# Try local buy first (optimistic for immediate feedback)
+	if not ItemManager.buy_item(item_data):
+		return
+	# Then confirm with backend
+	GameAPI.buy_item(item_id, _current_shop_node)
 
 # ---- 已持有道具 ----
 func _rebuild_owned_panel():
@@ -307,9 +317,22 @@ func _on_refresh_pressed():
 		return
 	_refresh_count += 1
 	_rare_boost = _check_rare_boost()
-	_load_shop_items()
+	# Async: reload shop from backend with updated refresh_count
+	GameAPI.get_shop_items(_current_shop_node, _refresh_count)
 	_update_refresh_button()
 	coins_label.text = "💰  %d" % RoundManager.game_coins
+
+# Callback when backend buy completes
+func _on_buy_completed(data: Dictionary):
+	# Check for backend error — sync coins from backend regardless
+	var coins = data.get("remaining_coins", -1)
+	if coins >= 0:
+		RoundManager.game_coins = coins
+	coins_label.text = "💰  %d" % RoundManager.game_coins
+	_rebuild_owned_panel()
+	_load_shop_items()
+	_update_refresh_button()
+	GameState.save_state()
 
 func _on_continue_pressed():
 	RoundManager._set_phase(RoundManager.Phase.PLAYING)

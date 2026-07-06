@@ -81,6 +81,13 @@ func has_joker(id: String) -> bool:
 
 func _create_effect(item_data: Dictionary):
 	var effect_class = item_data.get("effect_class", "")
+	# Auto-prefix path based on item_type if not already included
+	if effect_class != "" and "/" not in effect_class:
+		var item_type = item_data.get("item_type", 1)
+		if item_type == 0:
+			effect_class = "jokers/" + effect_class
+		else:
+			effect_class = "consumables/" + effect_class
 	var script_path = "res://scripts/items/%s.gd" % effect_class
 	if ResourceLoader.exists(script_path):
 		var script = load(script_path)
@@ -88,6 +95,7 @@ func _create_effect(item_data: Dictionary):
 		effect.resource_data = item_data
 		return effect
 	# Fallback：返回基础效果
+	push_warning("Item effect script not found: %s (id=%s)" % [script_path, item_data.get("id", "?")])
 	var base = load("res://scripts/items/ItemEffect.gd").new()
 	base.resource_data = item_data
 	return base

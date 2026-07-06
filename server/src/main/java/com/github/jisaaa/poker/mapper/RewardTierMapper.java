@@ -7,11 +7,16 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.util.List;
+
 @Mapper
 public interface RewardTierMapper extends BaseMapper<RewardTier> {
 
     @Select("SELECT * FROM reward_tier WHERE is_active = 1 AND min_score <= #{score} AND (max_score >= #{score} OR max_score = -1) ORDER BY min_score DESC LIMIT 1")
     RewardTier selectByScore(@Param("score") long score);
+
+    @Select("SELECT * FROM reward_tier WHERE is_active = 1 GROUP BY reward_name ORDER BY min_score ASC")
+    List<RewardTier> selectDistinctByName();
 
     @Update("UPDATE reward_tier SET stock_used = stock_used + 1 WHERE id = #{tierId}")
     int incrementStockUsed(@Param("tierId") int tierId);
