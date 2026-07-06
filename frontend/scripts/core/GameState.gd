@@ -6,6 +6,7 @@ const SAVE_PATH = "user://game_state.json"
 func save_state():
 	var state = {
 		"session_id": GameAPI.session_id,
+		"gold_coins": GameAPI.gold_coins,
 		"current_round": RoundManager.current_round,
 		"current_blind": RoundManager.current_blind,
 		"round_score": RoundManager.round_score,
@@ -43,6 +44,7 @@ func clear_save():
 
 func _restore_from_dict(state: Dictionary):
 	GameAPI.session_id = state.get("session_id", 0)
+	GameAPI.gold_coins = state.get("gold_coins", 100)
 	RoundManager.current_round  = state.get("current_round", 0)
 	RoundManager.current_blind  = state.get("current_blind", 0)
 	RoundManager.round_score    = state.get("round_score", 0)

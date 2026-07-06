@@ -2,6 +2,7 @@
 extends Node
 
 var session_id: int = 0
+var gold_coins: int = 0  # 外部金币（持久化，跨对局持有）
 var _base_url: String = "http://localhost:8080"
 var _auth_token: String = ""
 
@@ -12,6 +13,7 @@ signal shop_items_loaded(items: Array)
 signal buy_completed(data: Dictionary)
 signal revive_prepared(data: Dictionary)
 signal revive_completed(data: Dictionary)
+signal wallet_balance_loaded(balance: int)
 signal api_error(path: String, code: int, msg: String)
 
 # ── HTTP Request Helpers ──
@@ -85,6 +87,7 @@ func start_game():
 	_http_post("/api/game/start", {}, func(response: Dictionary):
 		var data = response.get("data", {})
 		session_id = int(data.get("session_id", 0))
+		gold_coins = int(data.get("gold_coins", 0))
 		# Load configs into ConfigLoader
 		ConfigLoader.load_from_server(data)
 		game_started.emit(data)
@@ -96,6 +99,7 @@ func start_game():
 func submit_result():
 	_http_post("/api/game/submit_result", {"session_id": session_id}, func(response: Dictionary):
 		var data = response.get("data", {})
+		gold_coins = int(data.get("gold_coins", 0))
 		result_submitted.emit(data)
 	)
 
@@ -144,4 +148,14 @@ func revive(ad_token: String) -> void:
 	_http_post("/api/game/revive", body, func(response: Dictionary):
 		var data = response.get("data", {})
 		revive_completed.emit(data)
+	)
+
+# ════════════════════════════════════════════════════════════════
+# API: get_wallet_balance → GET /api/wallet/balance
+# ════════════════════════════════════════════════════════════════
+func get_wallet_balance() -> void:
+	_http_get("/api/wallet/balance", func(response: Dictionary):
+		var data = response.get("data", {})
+		gold_coins = int(data.get("gold_coins", 0))
+		wallet_balance_loaded.emit(gold_coins)
 	)

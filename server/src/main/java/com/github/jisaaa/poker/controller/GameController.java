@@ -10,6 +10,7 @@ import com.github.jisaaa.poker.infrastructure.cache.InMemoryTokenStore;
 import com.github.jisaaa.poker.service.ConfigService;
 import com.github.jisaaa.poker.service.GameService;
 import com.github.jisaaa.poker.service.RewardService;
+import com.github.jisaaa.poker.service.WalletService;
 import javax.validation.Valid;
 import javax.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
@@ -30,16 +31,21 @@ public class GameController {
     private final InMemoryLeaderboard leaderboard;
     private final InMemoryTokenStore tokenStore;
     private final JwtConfig jwtConfig;
+    private final WalletService walletService;
 
     @PostMapping("/start")
     public ApiResult<Map<String, Object>> startGame(
             @RequestHeader("Authorization") String auth) {
         String userId = extractUserId(auth);
+        // Deduct entry cost from wallet (throws GOLD_INSUFFICIENT if balance too low)
+        int goldCoinsBalance = walletService.deductEntryCost(userId);
         GameSession session = gameService.startGame(userId);
 
         Map<String, Object> data = new HashMap<>();
         data.put("session_id", session.getId());
         data.put("rng_seed", session.getRngSeed());
+        data.put("gold_coins", goldCoinsBalance);
+        data.put("entry_cost", configService.getIntConfig("entry_cost", 10));
         data.put("round_config", buildRoundConfig());
         data.put("item_config", Map.of("items", configService.getAllItems()));
         data.put("reward_config", buildRewardConfig());
@@ -72,8 +78,13 @@ public class GameController {
 
         GameSession session = gameService.submitResult(userId, sessionId);
 
+        // Exchange total_score for gold coins
+        WalletService.ExchangeResult exchangeResult = walletService.exchangeScore(userId, session.getTotalScore());
+
         Map<String, Object> data = new HashMap<>();
         data.put("total_score", session.getTotalScore());
+        data.put("gold_earned", exchangeResult.getGoldEarned());
+        data.put("gold_coins", exchangeResult.getGoldCoinsBalance());
         data.put("global_rank", leaderboard.getMyGlobalRank(userId));
         data.put("friend_rank", 1); // Demo simplified
 

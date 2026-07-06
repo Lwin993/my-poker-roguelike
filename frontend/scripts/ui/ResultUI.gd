@@ -40,13 +40,23 @@ func _on_result_received(data: Dictionary):
 	total_score_label.text = "最终总分: %d" % data.get("total_score", 0)
 	global_rank_label.text = "🌍 全服 #%d" % data.get("global_rank", 0)
 	friend_rank_label.text = "👥 好友 #%d" % data.get("friend_rank", 0)
-	var tier = data.get("reward_tier", {})
-	if tier.is_empty():
-		reward_name.text = "参与奖"
-		_set_reward_color("digital")
+	# codeflicker-fix: LOGIC-Issue-3/dj8jw3oav3b23dnz7vyz — 展示兑换金币和余额
+	var gold_earned = int(data.get("gold_earned", 0))
+	var gold_balance = int(data.get("gold_coins", 0))
+	if gold_earned > 0:
+		reward_name.text = "%s  💰+%d金币" % [data.get("reward_tier", {}).get("reward_name", "参与奖") if data.get("reward_tier", {}) else "参与奖", gold_earned]
 	else:
-		reward_name.text = tier.get("reward_name", "参与奖")
-		_set_reward_color(tier.get("reward_type", "digital"))
+		var tier = data.get("reward_tier", {})
+		if tier.is_empty():
+			reward_name.text = "参与奖"
+			_set_reward_color("digital")
+		else:
+			reward_name.text = tier.get("reward_name", "参与奖")
+			_set_reward_color(tier.get("reward_type", "digital"))
+	# Update play_again button state based on gold balance
+	var entry_cost = 10  # TODO: get from ConfigLoader if available
+	play_again_button.disabled = (gold_balance < entry_cost)
+	play_again_button.tooltip_text = "再来一局（入场费: %d金币）" % entry_cost if gold_balance >= entry_cost else "金币不足，需要 %d 金币" % entry_cost
 
 func _set_reward_color(reward_type: String):
 	match reward_type:

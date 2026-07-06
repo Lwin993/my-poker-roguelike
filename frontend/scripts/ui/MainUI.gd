@@ -25,8 +25,12 @@ func _ready():
 
 	# Connect GameAPI signals for async flow
 	GameAPI.game_started.connect(_on_game_started)
+	GameAPI.wallet_balance_loaded.connect(_on_wallet_loaded)
 
 	_show_panel(main_menu)
+
+	# 首次进入主菜单时查询外部金币余额
+	GameAPI.get_wallet_balance()
 
 func _load_sub_scenes():
 	# 动态加载子场景内容
@@ -54,6 +58,21 @@ func _on_start_pressed():
 	# RoundManager.start_new_game() is deferred to _on_game_started callback
 	# after ConfigLoader has loaded configs from backend
 
+# codeflicker-fix: LOGIC-Issue-3/dj8jw3oav3b23dnz7vyz — 主菜单展示外部金币 + 余额不足检查
+var _entry_cost: int = 10  # default, updated from game_started response
+
+func _on_wallet_loaded(balance: int):
+	_update_start_button()
+
+func _update_start_button():
+	var btn = $MainMenu/Center/VBox/StartButton
+	if GameAPI.gold_coins < _entry_cost:
+		btn.disabled = true
+		btn.tooltip_text = "外部金币不足，需要 %d 金币" % _entry_cost
+	else:
+		btn.disabled = false
+		btn.tooltip_text = "开始游戏（入场费: %d 金币）" % _entry_cost
+
 func _on_rules_pressed():
 	rules_dialog.popup_centered()
 
@@ -71,6 +90,8 @@ func _on_phase_changed(new_phase: int):
 				_result_ui.show_result()
 		RoundManager.Phase.MAIN_MENU:
 			_show_panel(main_menu)
+			GameAPI.get_wallet_balance()
+			_update_start_button()
 
 func _show_panel(panel: Control):
 	for child in [main_menu, game_board, shop_node, result_screen]:
@@ -80,4 +101,5 @@ func _show_panel(panel: Control):
 func _on_game_started(data: Dictionary):
 	# ConfigLoader already loaded from GameAPI.start_game callback
 	# Now initialize game state with loaded configs
+	_entry_cost = int(data.get("entry_cost", 10))
 	RoundManager.start_new_game()
