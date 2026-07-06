@@ -85,12 +85,16 @@ func _http_get(path: String, callback: Callable) -> void:
 # ════════════════════════════════════════════════════════════════
 func start_game():
 	_http_post("/api/game/start", {}, func(response: Dictionary):
-		var data = response.get("data", {})
-		session_id = int(data.get("session_id", 0))
-		gold_coins = int(data.get("gold_coins", 0))
-		# Load configs into ConfigLoader
-		ConfigLoader.load_from_server(data)
-		game_started.emit(data)
+		if response.get("code", -1) == 0:
+			var data = response.get("data", {})
+			session_id = int(data.get("session_id", 0))
+			gold_coins = int(data.get("gold_coins", 0))
+			# Load configs into ConfigLoader
+			ConfigLoader.load_from_server(data)
+			game_started.emit(data)
+		else:
+			push_warning("start_game failed: %s" % response.get("msg", "unknown"))
+			api_error.emit("/api/game/start", response.get("code", -1), response.get("msg", ""))
 	)
 
 # ════════════════════════════════════════════════════════════════
@@ -102,9 +106,14 @@ func submit_result():
 		"total_score": RoundManager.total_score
 	}
 	_http_post("/api/game/submit_result", body, func(response: Dictionary):
-		var data = response.get("data", {})
-		gold_coins = int(data.get("gold_coins", 0))
-		result_submitted.emit(data)
+		if response.get("code", -1) == 0:
+			var data = response.get("data", {})
+			gold_coins = int(data.get("gold_coins", 0))
+			result_submitted.emit(data)
+		else:
+			push_warning("submit_result failed: %s" % response.get("msg", "unknown"))
+			# Still emit with local data so ResultUI shows something
+			result_submitted.emit({"total_score": RoundManager.total_score, "gold_earned": 0, "gold_coins": gold_coins})
 	)
 
 # ════════════════════════════════════════════════════════════════
@@ -159,7 +168,12 @@ func revive(ad_token: String) -> void:
 # ════════════════════════════════════════════════════════════════
 func get_wallet_balance() -> void:
 	_http_get("/api/wallet/balance", func(response: Dictionary):
-		var data = response.get("data", {})
-		gold_coins = int(data.get("gold_coins", 0))
-		wallet_balance_loaded.emit(gold_coins)
+		# Only update on success (code 0), don't zero out on failure
+		if response.get("code", -1) == 0:
+			var data = response.get("data", {})
+			gold_coins = int(data.get("gold_coins", 0))
+			wallet_balance_loaded.emit(gold_coins)
+		else:
+			# On failure, emit current value so UI still shows something
+			wallet_balance_loaded.emit(gold_coins)
 	)
