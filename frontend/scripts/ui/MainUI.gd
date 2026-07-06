@@ -6,6 +6,7 @@ extends Control
 @onready var shop_node    = $Shop
 @onready var result_screen = $ResultScreen
 @onready var rules_dialog  = $RulesDialog
+@onready var gold_coins_label = $MainMenu/Center/VBox/GoldCoinsLabel
 
 # 子场景脚本引用（动态加载）
 var _game_board_ui = null
@@ -62,6 +63,7 @@ func _on_start_pressed():
 var _entry_cost: int = 10  # default, updated from game_started response
 
 func _on_wallet_loaded(balance: int):
+	gold_coins_label.text = "💰 金币: %d" % balance
 	_update_start_button()
 
 func _update_start_button():
@@ -102,4 +104,5 @@ func _on_game_started(data: Dictionary):
 	# ConfigLoader already loaded from GameAPI.start_game callback
 	# Now initialize game state with loaded configs
 	_entry_cost = int(data.get("entry_cost", 10))
+	gold_coins_label.text = "💰 金币: %d" % GameAPI.gold_coins
 	RoundManager.start_new_game()
