@@ -131,10 +131,14 @@ public class GameService {
 
     /** Submit final result — complete the game session */
     @Transactional
-    public GameSession submitResult(String userId, Long sessionId) {
+    public GameSession submitResult(String userId, Long sessionId, long totalScore) {
         GameSession session = sessionMapper.selectById(sessionId);
         if (session == null) throw new BizException(ErrorCode.SESSION_NOT_FOUND);
         if (!session.getUserId().equals(userId)) throw new BizException(ErrorCode.SESSION_USER_MISMATCH);
+
+        // Update total_score from frontend (Demo: trust client score)
+        // TODO: future - verify with play_log for anti-cheat
+        session.setTotalScore(totalScore);
 
         // Finalize session
         session.setStatus(SessionStatus.COMPLETED.getCode());

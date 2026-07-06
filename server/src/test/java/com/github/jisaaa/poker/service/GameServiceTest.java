@@ -153,7 +153,7 @@ class GameServiceTest {
         when(sessionMapper.selectById(10001L)).thenReturn(playingSession);
         doReturn(1).when(sessionMapper).updateById(any(GameSession.class));
 
-        GameSession result = gameService.submitResult("user1", 10001L);
+        GameSession result = gameService.submitResult("user1", 10001L, 5000L);
 
         assertEquals(SessionStatus.COMPLETED.getCode(), result.getStatus());
         verify(leaderboard).submitScore("user1", 5000L);

@@ -97,7 +97,11 @@ func start_game():
 # API: submit_result → POST /api/game/submit_result
 # ════════════════════════════════════════════════════════════════
 func submit_result():
-	_http_post("/api/game/submit_result", {"session_id": session_id}, func(response: Dictionary):
+	var body = {
+		"session_id": session_id,
+		"total_score": RoundManager.total_score
+	}
+	_http_post("/api/game/submit_result", body, func(response: Dictionary):
 		var data = response.get("data", {})
 		gold_coins = int(data.get("gold_coins", 0))
 		result_submitted.emit(data)

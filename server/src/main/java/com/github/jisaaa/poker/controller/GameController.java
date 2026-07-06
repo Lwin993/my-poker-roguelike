@@ -75,8 +75,9 @@ public class GameController {
             @RequestBody Map<String, Object> body) {
         String userId = extractUserId(auth);
         Long sessionId = ((Number) body.get("session_id")).longValue();
+        long totalScore = ((Number) body.getOrDefault("total_score", 0)).longValue();
 
-        GameSession session = gameService.submitResult(userId, sessionId);
+        GameSession session = gameService.submitResult(userId, sessionId, totalScore);
 
         // Exchange total_score for gold coins
         WalletService.ExchangeResult exchangeResult = walletService.exchangeScore(userId, session.getTotalScore());
