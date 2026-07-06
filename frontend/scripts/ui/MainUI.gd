@@ -5,7 +5,6 @@ extends Control
 @onready var game_board   = $GameBoard
 @onready var shop_node    = $Shop
 @onready var result_screen = $ResultScreen
-@onready var rank_panel   = $RankPanel
 @onready var rules_dialog  = $RulesDialog
 @onready var gold_coins_label = $MainMenu/Center/VBox/GoldCoinsLabel
 
@@ -13,6 +12,7 @@ extends Control
 var _game_board_ui = null
 var _shop_ui       = null
 var _result_ui     = null
+var _rank_ui       = null
 
 func _ready():
 	# 连接相位切换信号
@@ -22,11 +22,6 @@ func _ready():
 	$MainMenu/Center/VBox/StartButton.pressed.connect(_on_start_pressed)
 	$MainMenu/Center/VBox/RulesButton.pressed.connect(_on_rules_pressed)
 	$MainMenu/Center/VBox/RankButton.pressed.connect(_on_rank_pressed)
-
-	# 挂载 RankUI 脚本到 RankPanel
-	var rank_script = load("res://scripts/ui/RankUI.gd")
-	if rank_script and rank_panel:
-		rank_panel.set_script(rank_script)
 
 	# 预加载子场景
 	_load_sub_scenes()
@@ -45,6 +40,7 @@ func _load_sub_scenes():
 	var board_scene  = load("res://scenes/GameBoard.tscn")
 	var shop_scene   = load("res://scenes/Shop.tscn")
 	var result_scene = load("res://scenes/ResultScreen.tscn")
+	var rank_scene   = load("res://scenes/Rank.tscn")
 
 	if board_scene:
 		var board_inst = board_scene.instantiate()
@@ -60,6 +56,11 @@ func _load_sub_scenes():
 		var result_inst = result_scene.instantiate()
 		result_screen.add_child(result_inst)
 		_result_ui = result_inst
+
+	if rank_scene:
+		var rank_inst = rank_scene.instantiate()
+		add_child(rank_inst)
+		_rank_ui = rank_inst
 
 func _on_start_pressed():
 	GameAPI.start_game()
@@ -86,9 +87,9 @@ func _on_rules_pressed():
 	rules_dialog.popup_centered()
 
 func _on_rank_pressed():
-	rank_panel.visible = true
-	if rank_panel.has_method("show_rank"):
-		rank_panel.show_rank()
+	if _rank_ui:
+		_rank_ui.visible = true
+		_rank_ui.show_rank()
 
 func _on_phase_changed(new_phase: int):
 	match new_phase:
