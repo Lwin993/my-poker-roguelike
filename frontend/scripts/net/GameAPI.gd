@@ -14,6 +14,7 @@ signal buy_completed(data: Dictionary)
 signal revive_prepared(data: Dictionary)
 signal revive_completed(data: Dictionary)
 signal wallet_balance_loaded(balance: int)
+signal rank_loaded(entries: Array)
 signal api_error(path: String, code: int, msg: String)
 
 # ── HTTP Request Helpers ──
@@ -176,4 +177,20 @@ func get_wallet_balance() -> void:
 		else:
 			# On failure, emit current value so UI still shows something
 			wallet_balance_loaded.emit(gold_coins)
+	)
+
+# ════════════════════════════════════════════════════════════════
+# API: get_global_rank → GET /api/rank/global
+# ════════════════════════════════════════════════════════════════
+func get_global_rank(page: int = 1, size: int = 20) -> void:
+	var url = "/api/rank/global?page=%d&size=%d" % [page, size]
+	_http_get(url, func(response: Dictionary):
+		if response.get("code", -1) == 0:
+			var entries = response.get("data", [])
+			if entries is Array:
+				rank_loaded.emit(entries)
+			else:
+				rank_loaded.emit([])
+		else:
+			rank_loaded.emit([])
 	)
