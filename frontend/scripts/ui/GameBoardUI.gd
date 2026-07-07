@@ -11,6 +11,7 @@ extends Control
 @onready var round_score_detail = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/RoundScoreLabel
 # ── 信息行 ──
 @onready var hand_name_label   = $MainHBox/TableVBox/HandRow/HandHintLabel
+@onready var boss_skill_label  = $MainHBox/TableVBox/HandRow/BossSkillLabel
 @onready var plays_label       = $MainHBox/Sidebar/ActionCounts/PlaysLabel
 @onready var discards_label    = $MainHBox/Sidebar/ActionCounts/DiscardsLabel
 @onready var total_score_label = $MainHBox/Sidebar/EconomyPanel/EconomyVBox/TotalScoreLabel
@@ -188,6 +189,19 @@ func _update_ui():
 	coins_label.text  = "$%d" % RoundManager.game_coins
 	total_score_label.text = "累计总分: %d" % RoundManager.total_score
 
+	# v3.1: 大妖技能提示
+	if BossSkillManager.current_skill != BossSkillManager.BossSkill.NONE:
+		var skill_name = BossSkillManager.SKILL_NAMES.get(BossSkillManager.current_skill, "")
+		var skill_desc = BossSkillManager.SKILL_DESCRIPTIONS.get(BossSkillManager.current_skill, "")
+		if BossSkillManager.skill_suppressed:
+			boss_skill_label.text = "👹 %s (已克制!)" % skill_name
+			boss_skill_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5, 1))
+		else:
+			boss_skill_label.text = "👹 %s: %s" % [skill_name, skill_desc]
+			boss_skill_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 1))
+	else:
+		boss_skill_label.text = ""
+
 	var plays    = RoundManager.plays_left
 	var discards = RoundManager.discards_left
 	plays_label.text    = "出牌\n%d" % plays
@@ -325,9 +339,17 @@ func _update_hand_name_label():
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 		_update_params_panel(result)
 	elif _selected_indices.size() > 0:
-		hand_name_label.text = "已选 %d 张\n还需 %d 张" % [_selected_indices.size(), 5 - _selected_indices.size()]
+		# v3.1: 实时预览 — 即使不足5张也计算当前选中牌的伤害值
+		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
+		var card_chips = 0
+		for c in sel_cards:
+			card_chips += c.get_chip_value()
+		var preview_damage = card_chips
+		hand_name_label.text = "已选 %d 张\n预览伤害 ~%d" % [_selected_indices.size(), preview_damage]
 		hand_name_label.add_theme_color_override("font_color", Color(0.98, 0.76, 0.34, 1))
-		_update_params_panel()
+		# 预览参数面板用部分牌的chips
+		_base_score_preview = card_chips
+		_apply_params_to_labels(1.0, 0.05, 2.0)
 	else:
 		hand_name_label.text = "选择 5 张牌"
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)

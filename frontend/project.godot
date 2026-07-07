@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Poker Roguelike"
-config/description="轻量级小丑牌 Roguelike 游戏"
+config/name="块游记"
+config/description="西游记主题扑克 Roguelike — 降妖除魔，爽感拉满"
 config/version="1.0.0"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")

@@ -323,6 +323,15 @@ custom_minimum_size = Vector2(0, 132)
 alignment = 1
 theme_override_constants/separation = 10
 
+[node name="BossSkillLabel" type="Label" parent="MainHBox/TableVBox/HandRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(180, 0)
+text = ""
+vertical_alignment = 1
+horizontal_alignment = 2
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(1.0, 0.3, 0.3, 1)
+
 [node name="HandHintLabel" type="Label" parent="MainHBox/TableVBox/HandRow"]
 layout_mode = 2
 custom_minimum_size = Vector2(124, 0)

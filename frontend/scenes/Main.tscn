@@ -35,27 +35,27 @@ alignment = 1
 
 [node name="Logo" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "🃏"
+text = "🐵"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 64
 
 [node name="Title" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "小丑牌 Roguelike"
+text = "块游记"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 30
+theme_override_font_sizes/font_size = 36
 theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
 
 [node name="Subtitle" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "三轮九回合 · 极限冲分"
+text = "三轮九回合 · 降妖除魔"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 15
 theme_override_colors/font_color = Color(0.0, 0.86, 0.72, 1)
 
 [node name="GoldCoinsLabel" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "💰 金币: --"
+text = "💎 灵石: --"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1.0, 0.84, 0.0, 1)
@@ -128,27 +128,36 @@ title = "游戏说明"
 size = Vector2(400, 520)
 dialog_text = "📖 游戏规则
 
-🎯 目标：三轮共9个回合，累计得分越高越好！
+🎯 目标：三轮共9个回合，降妖除魔，累计得分越高越好！
 
-🃏 基本玩法：
+🐵 基本玩法：
 • 每回合最多出牌4次，换牌4次
 • 每次出牌选5张，系统自动识别牌型并计分
 • 达到本回合门槛分即可晋级
 
-🎭 牌型基础分：
-  高牌50 / 一对100 / 两对180 / 三条300
-  顺子450 / 同花600 / 葫芦900
-  四条1500 / 同花顺2500
+⚔️ 牌型基础伤害（伤害 × 倍率）：
+  高牌5×1 / 一对10×2 / 两对20×2 / 三条30×3
+  顺子30×4 / 同花25×5 / 葫芦40×4
+  四条60×7 / 同花顺100×8
+  每张手牌额外提供伤害值(A=11, 2-10=面值, J/Q/K=10)
 
-🛒 商店（每个回合通关后进入）：
-• 小丑牌：持久被动效果，可升至3级
-• 冲分道具：出牌前激活，大幅提升得分
+🔥 暴击：5%概率触发，伤害×2.0！
+
+👹 大妖技能：
+  白骨精·白骨幻术：2张手牌不可选
+  黄风怪·风沙走石：3张手牌背面朝上
+  红孩儿·三昧真火：仅2种牌型可伤害
+  用对应克制道具可破解！
+
+🛒 仙铺（每个回合通关后进入）：
+• 法宝：持久被动效果，可升至3级
+• 道具：出牌前激活，大幅提升伤害
 
 ❤️ 复活：失败时可选择复活（最多3次）
 
 🏆 奖品档位：
-  0~999分   → 参与奖
-  1000~2999 → 雪碧
-  3000~5999 → 奶茶
-  6000~9999 → 奶茶升级券
-  10000+    → 稀有奖品"
+  0~999分     → 参与奖
+  1000~4999   → 雪碧
+  5000~14999  → 奶茶
+  15000~39999 → 奶茶升级券
+  40000+      → 稀有奖品"
