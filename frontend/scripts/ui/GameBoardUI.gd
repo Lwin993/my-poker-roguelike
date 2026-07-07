@@ -684,7 +684,7 @@ func _on_discard_pressed():
 # 计算过程动画
 # ════════════════════════════════════════════════════════════════
 func _show_calc_animation(result: Dictionary, played_cards: Array = []):
-	# 直接在牌桌中间展示计算过程，不再打开独立弹窗。
+	# ── 牌桌中间展示逐步计算过程 ──
 	for child in calc_steps_list.get_children(): child.queue_free()
 	for child in played_area.get_children(): child.queue_free()
 	for card in played_cards:
@@ -697,56 +697,141 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	calc_close_hint.visible = false
 
 	var steps    = result.get("steps", [])
-	var base_s   = result.get("snapshot", {}).get("chips", 0)
+	var chips    = result.get("snapshot", {}).get("chips", 0)
 	var is_crit  = result.get("is_crit", false)
 	var cm       = result.get("crit_mult", 2.0)
 	var final_sc = result.get("score", 0)
+	var sm       = result.get("snapshot", {}).get("special_mult", 1.0)
 	var joker_step_index = 0
-	_base_score_preview = base_s
-	_apply_params_to_labels(1.0, 0.0, 2.0)
+	var running_score = 0
 
-	# 逐步展示
-	for i in range(steps.size()):
+	# ── Phase 1: 牌型基础 ──
+	var base_step = steps[0] if steps.size() > 0 else {}
+	var base_chips = base_step.get("chips", 0)
+	var base_mult  = base_step.get("mult", 1.0)
+	running_score = int(base_chips * base_mult)
+	_base_score_preview = base_chips
+
+	calc_title.text = base_step.get("label", "牌型")
+	formula_label.text = "%d × %.0f = %d" % [base_chips, base_mult, running_score]
+	_apply_params_to_labels(base_mult, 0.05, 2.0)
+
+	# 显示基础步
+	_add_calc_step_row(base_step, base_chips)
+	await get_tree().create_timer(0.32).timeout
+
+	# ── Phase 2: 逐步展示各效果 ──
+	for i in range(1, steps.size()):
 		var step = steps[i]
-		await get_tree().create_timer(0.28).timeout
 		var step_type = step.get("type", "")
-		if step_type == "consumable" or step_type == "remain_boost":
-			_apply_params_to_labels(
-				step.get("mult", 1.0),
-				step.get("crit_rate", 0.0),
-				step.get("crit_mult", 2.0)
-			)
+		await get_tree().create_timer(0.25).timeout
+
+		if step_type == "elite_nerf":
+			# 火灵童首打削弱
+			running_score = int(running_score * 0.75)
+			formula_label.text = "火灵童 -25%% → %d" % running_score
+			var elite_row = _make_step_label("🔥", "火灵童：首打-25%", "×0.75", "→ %d" % running_score, Color(1.0, 0.35, 0.35, 1))
+			calc_steps_list.add_child(elite_row)
+			_fade_in_row(elite_row)
+
+		elif step_type == "consumable" or step_type == "remain_boost":
+			var s_chips = step.get("chips", chips)
+			var s_mult = step.get("mult", base_mult)
+			running_score = int(s_chips * s_mult)
+			var delta = step.get("delta", {})
+			var parts = []
+			if delta.get("chip_add",0) != 0: parts.append("伤害+%d" % int(delta.get("chip_add",0)))
+			if delta.get("mult_add",0) != 0: parts.append("倍率+%.1f" % delta.get("mult_add",0))
+			if delta.get("mult_factor",1) != 1: parts.append("倍率×%.1f" % delta.get("mult_factor",1))
+			var desc = "  ".join(parts) if parts else ""
+			formula_label.text = "%s → %d" % [desc, running_score]
+			var icon = "🧪" if step_type == "consumable" else "🃏"
+			var name = step.get("label", "道具")
+			var cons_row = _make_step_label(icon, name, desc, "→ %d" % running_score, GameTheme.COLOR_ACCENT)
+			calc_steps_list.add_child(cons_row)
+			_fade_in_row(cons_row)
+			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0))
+
 		elif step_type == "joker":
 			await _bounce_joker_badge(joker_step_index)
 			joker_step_index += 1
-			_apply_params_to_labels(
-				step.get("mult", 1.0),
-				step.get("crit_rate", 0.0),
-				step.get("crit_mult", 2.0)
-			)
+			var s_chips = step.get("chips", chips)
+			var s_mult = step.get("mult", base_mult)
+			var dsm = step.get("delta", {}).get("special_mult", 1.0)
+			if dsm != 1.0:
+				running_score = int(running_score * dsm)
+			else:
+				running_score = int(s_chips * s_mult)
+			var delta = step.get("delta", {})
+			var parts = []
+			if delta.get("chip_add",0) != 0: parts.append("伤害+%d" % int(delta.get("chip_add",0)))
+			if delta.get("mult_add",0) != 0: parts.append("倍率+%.1f" % delta.get("mult_add",0))
+			if delta.get("special_mult",1) != 1: parts.append("特殊×%.0f" % delta.get("special_mult",1))
+			var desc = "  ".join(parts) if parts else "无效果"
+			formula_label.text = "🎭 %s %s → %d" % [step.get("label",""), desc, running_score]
+			_add_calc_step_row(step, base_chips)
+			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0), dsm)
 
-	# 显示公式结果
-	await get_tree().create_timer(0.3).timeout
-	var mult = result.get("mult", 1.0)
-	var pre_crit = int(float(base_s) * mult)
-	score_burst_label.text = "+%d" % final_sc
-	score_burst_label.modulate.a = 1.0
-	score_burst_label.scale = Vector2.ONE
+	# ── Phase 3: 显示暴击前分数 ──
+	await get_tree().create_timer(0.25).timeout
+	var pre_crit_score = running_score
 	if is_crit:
-		await get_tree().create_timer(0.4).timeout
-		# 暴击膨胀
-		crit_banner.text    = "💥 CRIT!  ×%.1f 暴击膨胀！" % cm
-		crit_banner.visible = true
-		var tween = create_tween()
-		tween.tween_property(crit_banner, "scale", Vector2(1.35, 1.35), 0.18).set_ease(Tween.EASE_OUT)
-		tween.tween_property(crit_banner, "scale", Vector2(1.0,  1.0),  0.14).set_ease(Tween.EASE_IN)
-		await get_tree().create_timer(0.38).timeout
-	else:
-		await get_tree().create_timer(0.2).timeout
+		# 先显示暴击前分数
+		final_score_label.text = "%d" % pre_crit_score
+		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
+		score_burst_label.text = "+%d" % pre_crit_score
+		score_burst_label.modulate.a = 0.6
+		await get_tree().create_timer(0.35).timeout
 
-	await get_tree().create_timer(0.45).timeout
-	calc_close_hint.visible = false
+		# ── Phase 4: 暴击膨胀！ ──
+		crit_banner.text = "💥 暴击！  ×%.1f" % cm
+		crit_banner.visible = true
+		crit_banner.scale = Vector2(0.3, 0.3)
+		crit_banner.modulate.a = 1.0
+		var tw = create_tween()
+		tw.tween_property(crit_banner, "scale", Vector2(1.5, 1.5), 0.15).set_ease(Tween.EASE_OUT)
+		tw.tween_property(crit_banner, "scale", Vector2(1.0, 1.0), 0.12).set_ease(Tween.EASE_IN)
+		await get_tree().create_timer(0.35).timeout
+
+		# 分数变成暴击后
+		var crit_score = int(pre_crit_score * cm)
+		final_score_label.text = "%d" % crit_score
+		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
+		score_burst_label.text = "+%d 💥" % crit_score
+		score_burst_label.modulate.a = 1.0
+		score_burst_label.scale = Vector2(0.5, 0.5)
+		var tw2 = create_tween()
+		tw2.tween_property(score_burst_label, "scale", Vector2(1.3, 1.3), 0.12).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(score_burst_label, "scale", Vector2(1.0, 1.0), 0.10).set_ease(Tween.EASE_IN)
+	else:
+		# 无暴击 — 直接显示最终分数
+		final_score_label.text = "%d" % final_sc
+		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+		score_burst_label.text = "+%d" % final_sc
+		score_burst_label.modulate.a = 1.0
+		score_burst_label.scale = Vector2.ONE
+
+	await get_tree().create_timer(0.6).timeout
 	await _fade_score_burst()
+
+
+func _make_step_label(icon: String, name: String, delta: String, result: String, color: Color) -> HBoxContainer:
+	var row = HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var icon_lbl = Label.new(); icon_lbl.text = icon; icon_lbl.add_theme_font_size_override("font_size", 14)
+	var name_lbl = Label.new(); name_lbl.text = name; name_lbl.add_theme_font_size_override("font_size", 12)
+	name_lbl.add_theme_color_override("font_color", color); name_lbl.size_flags_horizontal = 3
+	var delta_lbl = Label.new(); delta_lbl.text = delta; delta_lbl.add_theme_font_size_override("font_size", 11)
+	delta_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.55, 1))
+	var result_lbl = Label.new(); result_lbl.text = result; result_lbl.add_theme_font_size_override("font_size", 12)
+	result_lbl.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+	row.add_child(icon_lbl); row.add_child(name_lbl); row.add_child(delta_lbl); row.add_child(result_lbl)
+	return row
+
+func _fade_in_row(row: Control):
+	row.modulate.a = 0.0
+	var tw = create_tween()
+	tw.tween_property(row, "modulate:a", 1.0, 0.20)
 
 func _bounce_joker_badge(index: int):
 	if index < 0 or index >= _joker_badge_nodes.size():

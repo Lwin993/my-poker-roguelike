@@ -40,8 +40,9 @@ config_version=5
 window/size/viewport_width=960
 window/size/viewport_height=540
 window/size/resizable=true
-window/stretch/mode="viewport"
-window/stretch/aspect="expand"
+window/size/minimum_size=Vector2i(640, 400)
+window/stretch/mode="canvas_items"
+window/stretch/aspect="keep"
 
 [rendering]
 
