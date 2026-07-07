@@ -161,6 +161,10 @@ func suppress_skill():
 	skill_suppressed = true
 	boss_skill_suppressed.emit()
 
+# v3.1: 克制道具仅生效一次出牌，出牌后恢复
+func unsuppress_skill():
+	skill_suppressed = false
+
 # 检查消耗品是否克制当前大妖技能
 func does_consumable_counter_skill(consumable_id: String) -> bool:
 	if current_skill == BossSkill.NONE:

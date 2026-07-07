@@ -707,6 +707,8 @@ func _on_play_pressed():
 	await _show_calc_animation(result, played_cards)
 
 	_clear_used_consumables()
+	# v3.1: 克制道具仅生效一次出牌，出牌后恢复压制状态
+	BossSkillManager.unsuppress_skill()
 	# v3.1: 出牌后重新执行敌方技能（重新随机锁定/遮挡）
 	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 	_rebuild_hand(); _rebuild_consumables(); _update_ui(); _reset_inline_calc()
