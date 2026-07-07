@@ -247,7 +247,7 @@ func _update_params_panel(hand_result: Dictionary = {}):
 func _apply_params_to_labels(mult: float, cr: float, cm: float, sm: float = 1.0, sm_prob: float = -1.0):
 	mult_label.text      = "基础伤害 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
 	crit_rate_label.text = "暴击率 %d%%" % int(cr * 100)
-	crit_mult_label.text = "暴击倍数 ×%.1f" % cm
+	crit_mult_label.text = "暴击时 ×%.1f" % cm
 	if sm > 1.01:
 		var prob_str = " (%d%%概率)" % int(sm_prob * 100) if sm_prob >= 0.0 else ""
 		crit_mult_label.text += "\n🎭 ×%.0f%s" % [sm, prob_str]
