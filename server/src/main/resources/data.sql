@@ -11,7 +11,7 @@ INSERT OR IGNORE INTO game_config (config_key, config_value) VALUES
 ('refresh_cost_formula', '{"base":5,"increment":5}');
 
 -- v3.1: 奖品档位适配新伤害曲线
-INSERT OR IGNORE INTO reward_tier (min_score, max_score, reward_name, reward_type, stock_limit) VALUES
+INSERT OR REPLACE INTO reward_tier (min_score, max_score, reward_name, reward_type, stock_limit) VALUES
 (0,     999,   '参与奖',     'digital', -1),
 (1000,  4999,  '雪碧',       'drink',   5000),
 (5000,  14999, '奶茶',       'drink',   3000),
@@ -19,7 +19,7 @@ INSERT OR IGNORE INTO reward_tier (min_score, max_score, reward_name, reward_typ
 (40000, -1,    '稀有奖品',   'rare',    100);
 
 -- v3.1: 4大法宝 + 道具配置
-INSERT OR IGNORE INTO item_config (item_id, config_data) VALUES
+INSERT OR REPLACE INTO item_config (item_id, config_data) VALUES
 ('artifact_jgb', '{"display_name":"金箍棒","description":"+倍率(稳定增伤)","price":35,"rarity":0,"item_type":0,"shop_weights":[30,25,20,15,10,5],"upgrade_costs":[40,80],"effect_class":"JinGuBang","level_params":[{"mult_add":4},{"mult_add":7},{"mult_add":11}]}'),
 ('artifact_zjl', '{"display_name":"紫金铃","description":"连锁+倍率(连续同牌型递增)","price":45,"rarity":0,"item_type":0,"shop_weights":[25,25,25,20,15,10],"upgrade_costs":[50,100],"effect_class":"ZiJinLing","level_params":[{"mult_per_stack":4},{"mult_per_stack":6},{"mult_per_stack":9}]}'),
 ('artifact_rsg', '{"display_name":"人参果","description":"低概率×极高倍率","price":55,"rarity":0,"item_type":0,"shop_weights":[15,12,15,18,15,10],"upgrade_costs":[60,120],"effect_class":"RenShenGuo","level_params":[{"boom_prob":0.05,"boom_mult":10},{"boom_prob":0.08,"boom_mult":15},{"boom_prob":0.12,"boom_mult":25}]}'),
