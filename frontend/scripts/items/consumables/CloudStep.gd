@@ -2,7 +2,7 @@
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {}  # 不影响分数计算
+	return {"hand_size_add": 1}  # v3.1: tooltip用
 
 func apply_special_effect():
 	DeckManager.hand_limit += 1

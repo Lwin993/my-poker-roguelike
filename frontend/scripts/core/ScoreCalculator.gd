@@ -150,26 +150,7 @@ func _build_steps(
 			},
 		})
 
-	# 余牌加持
-	for item in active_consumables:
-		if item.resource_data.get("id", "") == "remaining_boost":
-			if remaining_hand.size() > 0:
-				var max_rank = 0
-				for c in remaining_hand:
-					if c.rank > max_rank: max_rank = c.rank
-				var effective = 14 if max_rank == 1 else max_rank
-				mult += float(effective)
-				steps.append({
-					"type":      "remain_boost",
-					"label":     "余牌加持(+%d)" % effective,
-					"chips":     chips,
-					"mult":      mult,
-					"crit_rate": crit_rate,
-					"crit_mult": crit_mult,
-					"partial":   int(chips * mult),
-					"delta":     {"mult_add": float(effective)},
-				})
-			break
+	# v3.1: 余牌加持已移除
 
 	# Step M+1~N：每张法宝按顺序触发
 	var sm_prob = -1.0  # 预览时显示概率

@@ -1,7 +1,7 @@
 # ExtraPlayTicket.gd — 额外出牌券：出牌次数+1
 extends "res://scripts/items/ItemEffect.gd"
 func get_score_modifiers() -> Dictionary:
-	return {}
+	return {"play_add": 1}  # v3.1: tooltip用
 func is_consumed() -> bool:
 	return true
 # 特殊效果：使用时增加出牌次数

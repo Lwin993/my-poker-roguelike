@@ -525,18 +525,20 @@ func _show_joker_detail(joker):
 		_add_param_row("提升倍率", "+%.2f" % info.get("current_bonus", 0.0), GameTheme.COLOR_BLUE_CHIP, info.get("current_bonus", 0.0) != 0.0)
 		_add_param_row("每次提升", "+%.2f" % info.get("per_stack", 0.0), GameTheme.COLOR_JOKER, true)
 	else:
-		# 获取当前等级下的参数贡献
-		var delta = joker.get_passive_modifiers({})
+		# v3.1: 优先用 get_preview_modifiers（确定性，不触发随机）
+		var delta = joker.get_preview_modifiers({}) if joker.has_method("get_preview_modifiers") else joker.get_passive_modifiers({})
 		var dm    = delta.get("mult_add",      0.0)
-		var dcr   = delta.get("crit_rate_add", 0.0)
-		var dcm   = delta.get("crit_mult_add", 0.0)
+		var dcr   = delta.get("crit_rate_add",  0.0)
+		var dcm   = delta.get("crit_mult_add",  0.0)
 		var dsm   = delta.get("special_mult",  1.0)
+		var dprob = delta.get("special_mult_prob", -1.0)
 
 		_add_param_row("倍率加成",      "+%.2f" % dm,            GameTheme.COLOR_BLUE_CHIP, dm != 0.0)
 		_add_param_row("暴击率加成",    "+%d%%" % int(dcr*100),  Color(1.0, 0.72, 0.10, 1), dcr != 0.0)
 		_add_param_row("暴击倍数加成",  "+%.1f" % dcm,           Color(1.0, 0.40, 0.10, 1), dcm != 0.0)
 		if dsm != 1.0:
-			_add_param_row("特殊倍率", "×%.2f" % dsm, GameTheme.COLOR_JOKER, true)
+			var prob_str = " (%d%%概率)" % int(dprob * 100) if dprob >= 0 else ""
+			_add_param_row("特殊倍率", "×%.0f%s" % [dsm, prob_str], GameTheme.COLOR_JOKER, true)
 
 	# 升级后预览（若未满级）
 	var cost = joker.get_upgrade_cost()
@@ -585,8 +587,23 @@ func _make_consumable_card(cons) -> Control:
 	var desc_s  = cons.resource_data.get("description", "")
 	var color   = GameTheme.COLOR_RARE if rarity == 1 else GameTheme.COLOR_ACCENT
 
+	# v3.1: 构建 tooltip 包含具体效果数值
+	var tooltip = "%s\n%s" % [name_s, desc_s]
+	if cons.has_method("get_score_modifiers"):
+		var mods = cons.get_score_modifiers()
+		var parts = []
+		if mods.get("chip_add", 0) != 0: parts.append("伤害+%d" % int(mods.get("chip_add", 0)))
+		if mods.get("mult_add", 0) != 0: parts.append("倍率+%.1f" % mods.get("mult_add", 0))
+		if mods.get("mult_factor", 1) != 1: parts.append("倍率×%.1f" % mods.get("mult_factor", 1))
+		if mods.get("crit_rate_add", 0) != 0: parts.append("暴击率+%d%%" % int(mods.get("crit_rate_add", 0)*100))
+		if mods.get("crit_mult_add", 0) != 0: parts.append("暴击倍数+%.1f" % mods.get("crit_mult_add", 0))
+		if mods.get("hand_size_add", 0) != 0: parts.append("手牌上限+%d" % int(mods.get("hand_size_add", 0)))
+		if mods.get("play_add", 0) != 0: parts.append("出牌次数+%d" % int(mods.get("play_add", 0)))
+		if parts.size() > 0:
+			tooltip += "\n⚡ %s" % "  ".join(parts)
+
 	var panel = PanelContainer.new(); panel.custom_minimum_size = Vector2(74, 54)
-	panel.tooltip_text = "%s\n%s" % [name_s, desc_s]
+	panel.tooltip_text = tooltip
 	var ps = StyleBoxFlat.new()
 	ps.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.16); ps.border_color = color.darkened(0.05)
 	ps.set_border_width_all(2); ps.set_corner_radius_all(6)
@@ -598,16 +615,16 @@ func _make_consumable_card(cons) -> Control:
 
 	var icon = Label.new(); icon.text = "✨" if rarity == 1 else "🧪"
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; icon.add_theme_font_size_override("font_size", 13)
-	icon.tooltip_text = panel.tooltip_text
+	icon.tooltip_text = tooltip
 	vb.add_child(icon)
 
 	var nm = Label.new(); nm.text = name_s
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; nm.add_theme_font_size_override("font_size", 10)
 	nm.add_theme_color_override("font_color", color)
-	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nm.tooltip_text = panel.tooltip_text; vb.add_child(nm)
+	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nm.tooltip_text = tooltip; vb.add_child(nm)
 
 	var use_btn = Button.new(); use_btn.custom_minimum_size = Vector2(0, 18); use_btn.text = "使用"
-	use_btn.tooltip_text = panel.tooltip_text
+	use_btn.tooltip_text = tooltip
 	use_btn.add_theme_font_size_override("font_size", 10)
 	var bs = StyleBoxFlat.new()
 	bs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.24); bs.border_color = color; bs.set_border_width_all(2); bs.set_corner_radius_all(5)
@@ -631,7 +648,15 @@ func _on_consumable_used(item_id: String, cons, panel: Control):
 		# 筋斗云增加手牌后需要重建手牌显示
 		if cons.resource_data.get("id", "") == "cloud_step":
 			_rebuild_hand()
-	panel.queue_free()
+	# v3.1: 回合持续的道具保留在面板但禁用，一次性道具直接移除
+	if not cons.is_round_wide():
+		panel.queue_free()
+	else:
+		# 禁用使用按钮，显示"已激活"
+		for child in panel.get_children():
+			if child is Button:
+				child.disabled = true
+				child.text = "✓ 已激活"
 	_update_params_panel()
 	if _selected_indices.size() == 5:
 		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
