@@ -268,7 +268,7 @@ func _rebuild_hand():
 		hand_area.add_child(btn)
 		_card_nodes.append(btn)
 	_update_hand_name_label()
-	_update_params_panel()
+	# Don't call _update_params_panel() here — _update_hand_name_label already handles it
 
 # 排序后重建手牌，保留选中状态
 func _rebuild_hand_keep_selection():
@@ -382,6 +382,7 @@ func _update_hand_name_label():
 		var result = HandEvaluator.evaluate(sel_cards)
 		hand_name_label.text = "%s\n伤害 %d  ×%d" % [result.hand_name, result.base_chips + result.card_chips, result.base_mult]
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+		_base_score_preview = result.base_chips + result.card_chips
 		_update_params_panel(result)
 	elif _selected_indices.size() > 0:
 		# v3.1: 实时预览 — 即使不足5张也计算当前选中牌的伤害值

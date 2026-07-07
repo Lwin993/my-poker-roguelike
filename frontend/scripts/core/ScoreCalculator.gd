@@ -24,10 +24,13 @@ func calculate(
 
 	var is_crit = randf() < clampf(crit_rate, 0.0, 1.0)
 
+	# v3.1: 精英怪首打削弱（火灵童：首打-25%）
+	var elite_nerf = 0.75 if BossSkillManager.is_first_play_nerfed() else 1.0
+
 	var score = chips * mult
 	if is_crit: score *= crit_mult
 	score *= special_mult
-	score *= elite_nerf   # 精英怪首打削弱
+	score *= elite_nerf
 
 	return {
 		"score":        int(score),
