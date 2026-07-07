@@ -204,8 +204,9 @@ func _reset_blind():
 	plays_left    = 4
 	discards_left = 5  # v3.1: 每怪5次换牌
 	DeckManager.reset()
-	# v3.1: 大妖技能触发
+	# v3.1: 敌方技能触发（大妖+精英怪）
 	BossSkillManager.apply_skill(current_round, current_blind)
+	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 
 func revive():
 	if revive_count >= max_revives: return

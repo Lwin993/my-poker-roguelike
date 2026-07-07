@@ -124,6 +124,9 @@ func apply_skill(round: int, blind: int):
 			1: current_elite_passive = ElitePassive.FACE_DOWN
 			2: current_elite_passive = ElitePassive.FIRST_PLAY_NERF
 			_: current_elite_passive = ElitePassive.NONE
+		# 火灵童首打削弱立即生效
+		if current_elite_passive == ElitePassive.FIRST_PLAY_NERF:
+			first_play_nerfed = true
 	# blind == 0（小兵）: 无技能
 
 # 执行技能效果（在手牌生成后调用）
@@ -138,7 +141,7 @@ func execute_skill_on_hand(hand: Array):
 			BossSkill.HOLY_FIRE:
 				_select_allowed_hand_ranks()
 
-	# 精英怪被动
+	# 精英怪被动（锁定/翻面重新随机；首打削弱不在此重置）
 	if current_elite_passive != ElitePassive.NONE:
 		match current_elite_passive:
 			ElitePassive.LOCK_CARD:
@@ -146,7 +149,7 @@ func execute_skill_on_hand(hand: Array):
 			ElitePassive.FACE_DOWN:
 				_mark_elite_face_down_card(hand)
 			ElitePassive.FIRST_PLAY_NERF:
-				first_play_nerfed = true  # 标记本回合首打出牌-25%
+				pass  # 首打削弱在apply_skill时已标记，换牌不重置
 
 func suppress_skill():
 	if skill_suppressed:

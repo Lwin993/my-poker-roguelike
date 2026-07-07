@@ -292,10 +292,31 @@ func _make_card_button(card, idx: int) -> Button:
 	var sc  = SUIT_COLORS[card.suit]
 	var btn = Button.new()
 	btn.custom_minimum_size = Vector2(74, 112)
-	btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
-	btn.add_theme_font_size_override("font_size", 24)
-	btn.add_theme_color_override("font_color", sc)
-	_apply_card_style(btn, sc, false)
+
+	# v3.1: 精英怪/大妖技能视觉特效
+	var is_locked = not BossSkillManager.is_card_selectable(idx, DeckManager.hand)
+	var is_hidden = not BossSkillManager.is_card_visible(idx)
+
+	if is_hidden:
+		# 背面朝上（小旋风/风沙走石）
+		btn.text = "?\n?"
+		btn.add_theme_font_size_override("font_size", 28)
+		btn.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
+		_apply_card_style(btn, Color(0.3, 0.3, 0.3, 1), false)
+		btn.tooltip_text = "此牌被遮挡，无法查看"
+	elif is_locked:
+		# 幻影牌/锁定牌（骷髅将/白骨幻术）
+		btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
+		btn.add_theme_font_size_override("font_size", 24)
+		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 0.5))
+		_apply_card_style(btn, Color(0.5, 0.5, 0.5, 0.6), false)
+		btn.tooltip_text = "此牌被锁定，不可选中"
+	else:
+		btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
+		btn.add_theme_font_size_override("font_size", 24)
+		btn.add_theme_color_override("font_color", sc)
+		_apply_card_style(btn, sc, false)
+
 	var i = idx
 	btn.pressed.connect(func(): _on_card_pressed(i))
 	return btn
@@ -318,6 +339,9 @@ func _apply_card_style(btn: Button, sc: Color, selected: bool):
 	btn.add_theme_stylebox_override("pressed", normal)
 
 func _on_card_pressed(idx: int):
+	# v3.1: 被锁定的牌不可选中（骷髅将/白骨幻术）
+	if not BossSkillManager.is_card_selectable(idx, DeckManager.hand):
+		return
 	if _selected_indices.has(idx): _selected_indices.erase(idx)
 	elif _selected_indices.size() < 5: _selected_indices.append(idx)
 	_update_card_visuals()
@@ -325,7 +349,27 @@ func _on_card_pressed(idx: int):
 
 func _update_card_visuals():
 	for i in range(_card_nodes.size()):
-		var btn = _card_nodes[i]; var sc = SUIT_COLORS[DeckManager.hand[i].suit]
+		var btn = _card_nodes[i]
+		var card = DeckManager.hand[i]
+		var sc = SUIT_COLORS[card.suit]
+
+		# v3.1: 被锁定/遮挡的牌保持特殊视觉
+		var is_locked = not BossSkillManager.is_card_selectable(i, DeckManager.hand)
+		var is_hidden = not BossSkillManager.is_card_visible(i)
+
+		if is_hidden:
+			btn.text = "?\n?"
+			btn.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
+			_apply_card_style(btn, Color(0.3, 0.3, 0.3, 1), false)
+			btn.position.y = 0
+			continue
+		elif is_locked:
+			btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
+			_apply_card_style(btn, Color(0.5, 0.5, 0.5, 0.6), false)
+			btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 0.5))
+			btn.position.y = 0
+			continue
+
 		var sel = _selected_indices.has(i)
 		_apply_card_style(btn, sc, sel)
 		btn.add_theme_color_override("font_color", GameTheme.COLOR_CARD_INK if sel else sc)
@@ -594,6 +638,8 @@ func _on_play_pressed():
 	await _show_calc_animation(result, played_cards)
 
 	_clear_used_consumables()
+	# v3.1: 出牌后重新执行敌方技能（重新随机锁定/遮挡）
+	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 	_rebuild_hand(); _rebuild_consumables(); _update_ui(); _reset_inline_calc()
 	play_button.disabled    = RoundManager.plays_left <= 0
 	discard_button.disabled = RoundManager.discards_left <= 0
@@ -606,6 +652,8 @@ func _on_discard_pressed():
 		_show_tip("请选择要换掉的牌！", Color(0.95, 0.60, 0.15, 1)); return
 	if RoundManager.discards_left <= 0: return
 	RoundManager.discard_cards(_selected_indices.duplicate())
+	# v3.1: 换牌后重新执行敌方技能（重新随机锁定/遮挡）
+	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 	_rebuild_hand(); _update_ui(); GameState.save_state()
 
 # ════════════════════════════════════════════════════════════════
