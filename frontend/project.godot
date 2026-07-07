@@ -42,7 +42,7 @@ window/size/viewport_height=540
 window/size/resizable=true
 window/size/minimum_size=Vector2i(640, 400)
 window/stretch/mode="canvas_items"
-window/stretch/aspect="keep"
+window/stretch/aspect="expand"
 
 [rendering]
 
