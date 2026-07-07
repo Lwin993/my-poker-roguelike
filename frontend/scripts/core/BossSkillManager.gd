@@ -85,8 +85,8 @@ func is_card_visible(card_index: int) -> bool:
 	if current_skill == BossSkill.SANDSTORM and not skill_suppressed:
 		if card_index in face_down_indices:
 			return false
-	# 精英怪翻面
-	if current_elite_passive == ElitePassive.FACE_DOWN:
+	# 精英怪翻面（v3.1: 克制道具也压制精英被动）
+	if current_elite_passive == ElitePassive.FACE_DOWN and not skill_suppressed:
 		if card_index in elite_face_down_indices:
 			return false
 	return true

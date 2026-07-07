@@ -386,20 +386,35 @@ func _update_hand_name_label():
 	if _selected_indices.size() == 5:
 		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
 		var result = HandEvaluator.evaluate(sel_cards)
-		hand_name_label.text = "%s\n伤害 %d  ×%d" % [result.hand_name, result.base_chips + result.card_chips, result.base_mult]
+		# v3.1: 翻面牌的card_chips隐藏，避免推断
+		var has_hidden = false
+		for idx in _selected_indices:
+			if not BossSkillManager.is_card_visible(idx):
+				has_hidden = true
+				break
+		var display_chips = result.base_chips + result.card_chips
+		var hidden_hint = " (+?)" if has_hidden else ""
+		hand_name_label.text = "%s\n伤害 %d%s  ×%d" % [result.hand_name, result.base_chips, hidden_hint, result.base_mult]
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 		_base_score_preview = result.base_chips + result.card_chips
 		_update_params_panel(result)
 	elif _selected_indices.size() > 0:
 		# v3.1: 实时预览 — 即使不足5张也计算当前选中牌的伤害值
+		# 翻面牌（?）的伤害值不显示，避免暴露牌面
 		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
 		var card_chips = 0
-		for c in sel_cards:
-			card_chips += c.get_chip_value()
+		var has_hidden = false
+		for i in range(sel_cards.size()):
+			var idx = _selected_indices[i]
+			if not BossSkillManager.is_card_visible(idx):
+				has_hidden = true
+			else:
+				card_chips += sel_cards[i].get_chip_value()
 		var preview_damage = card_chips
-		hand_name_label.text = "已选 %d 张\n预览伤害 ~%d" % [_selected_indices.size(), preview_damage]
+		var hidden_hint = " (+?)" if has_hidden else ""
+		hand_name_label.text = "已选 %d 张\n预览伤害 ~%d%s" % [_selected_indices.size(), preview_damage, hidden_hint]
 		hand_name_label.add_theme_color_override("font_color", Color(0.98, 0.76, 0.34, 1))
-		# 预览参数面板用部分牌的chips
+		# 预览参数面板用部分牌的chips（翻面牌不含）
 		_base_score_preview = card_chips
 		_apply_params_to_labels(1.0, 0.05, 2.0)
 	else:
@@ -648,6 +663,11 @@ func _on_consumable_used(item_id: String, cons, panel: Control):
 		# 筋斗云增加手牌后需要重建手牌显示
 		if cons.resource_data.get("id", "") == "cloud_step":
 			_rebuild_hand()
+	# v3.1: 克制道具 — 破除大妖技能（定风丹/照妖镜/圣露）
+	var mods = cons.get_score_modifiers() if cons.has_method("get_score_modifiers") else {}
+	if mods.get("boss_suppress", false):
+		BossSkillManager.suppress_skill()
+		_rebuild_hand()  # 重建手牌显示，翻面/幻影牌恢复可见
 	# v3.1: 回合持续的道具保留在面板但禁用，一次性道具直接移除
 	if not cons.is_round_wide():
 		panel.queue_free()
