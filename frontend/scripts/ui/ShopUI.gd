@@ -14,6 +14,7 @@ var _rare_boost: bool = false
 var _current_shop_node: int = 0
 var _pending_shop_items: Array = []  # items from API, waiting to render
 var _current_shop_items: Array = []  # v3.1: cached for re-render after buy
+var _sold_item_ids: Array = []      # v3.1: 已售罄的商品ID
 
 func _ready():
 	_style_button(continue_button, GameTheme.COLOR_ACCENT)
@@ -37,6 +38,7 @@ func _style_button(btn: Button, color: Color):
 # ---- 入口 ----
 func refresh_shop():
 	_refresh_count    = 0
+	_sold_item_ids.clear()  # v3.1: 新商店清空售罄记录
 	_has_free_refresh = _check_free_refresh()
 	_rare_boost       = _check_rare_boost()
 	_update_header()
@@ -137,11 +139,15 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	vbox.add_child(desc_lbl)
 
 	var already_owned = (item_type == 0 and ItemManager.has_joker(id))
+	var is_sold = _sold_item_ids.has(id)
 	var can_afford    = (RoundManager.game_coins >= price)
 	var consumable_full = item_type != 0 and not ItemManager.can_add_consumable()
 	var buy_btn = Button.new()
 	buy_btn.custom_minimum_size = Vector2(0, 34)
-	if already_owned:
+	if is_sold:
+		buy_btn.text = "已售罄"; buy_btn.disabled = true
+		buy_btn.tooltip_text = "已购买"
+	elif already_owned:
 		buy_btn.text = "✓ 已拥有"; buy_btn.disabled = true
 		buy_btn.tooltip_text = "已经拥有该法宝"
 	elif consumable_full:
@@ -151,7 +157,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 		buy_btn.text = "💎%d 购买" % price; buy_btn.disabled = not can_afford
 		buy_btn.tooltip_text = card.tooltip_text if can_afford else "灵石不足"
 
-	var bc = border_color if (can_afford and not already_owned and not consumable_full) else Color(0.4,0.4,0.4,1)
+	var bc = border_color if (can_afford and not already_owned and not consumable_full and not is_sold) else Color(0.4,0.4,0.4,1)
 	var bs = StyleBoxFlat.new()
 	bs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(bc, 0.24); bs.border_color = bc
 	bs.set_border_width_all(2); bs.set_corner_radius_all(5)
@@ -166,9 +172,14 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	return card
 
 func _on_buy_pressed(item_id: String, item_data: Dictionary):
+	# v3.1: 已售罄的商品不可再买
+	if _sold_item_ids.has(item_id):
+		return
 	# Try local buy first (optimistic for immediate feedback)
 	if not ItemManager.buy_item(item_data):
 		return
+	# 标记为售罄
+	_sold_item_ids.append(item_id)
 	# Then confirm with backend
 	GameAPI.buy_item(item_id, _current_shop_node)
 	# v3.1: 购买后刷新UI（更新已拥有状态 + 灵石余额）

@@ -701,7 +701,6 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	var is_crit  = result.get("is_crit", false)
 	var cm       = result.get("crit_mult", 2.0)
 	var final_sc = result.get("score", 0)
-	var sm       = result.get("snapshot", {}).get("special_mult", 1.0)
 	var joker_step_index = 0
 	var running_score = 0
 
@@ -712,25 +711,23 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	running_score = int(base_chips * base_mult)
 	_base_score_preview = base_chips
 
+	# 顶部标题显示牌型名 + 公式
 	calc_title.text = base_step.get("label", "牌型")
-	formula_label.text = "%d × %.0f = %d" % [base_chips, base_mult, running_score]
+	formula_label.text = "%d(手牌) × %.0f(牌型) = %d" % [base_chips, base_mult, running_score]
 	_apply_params_to_labels(base_mult, 0.05, 2.0)
-
-	# 显示基础步
 	_add_calc_step_row(base_step, base_chips)
-	await get_tree().create_timer(0.32).timeout
+	await get_tree().create_timer(0.35).timeout
 
 	# ── Phase 2: 逐步展示各效果 ──
 	for i in range(1, steps.size()):
 		var step = steps[i]
 		var step_type = step.get("type", "")
-		await get_tree().create_timer(0.25).timeout
+		await get_tree().create_timer(0.22).timeout
 
 		if step_type == "elite_nerf":
-			# 火灵童首打削弱
 			running_score = int(running_score * 0.75)
-			formula_label.text = "火灵童 -25%% → %d" % running_score
-			var elite_row = _make_step_label("🔥", "火灵童：首打-25%", "×0.75", "→ %d" % running_score, Color(1.0, 0.35, 0.35, 1))
+			formula_label.text = "🔥 火灵童 -25%% → %d" % running_score
+			var elite_row = _make_step_label("🔥", "火灵童首打削弱", "×0.75", "→ %d" % running_score, Color(1.0, 0.35, 0.35, 1))
 			calc_steps_list.add_child(elite_row)
 			_fade_in_row(elite_row)
 
@@ -744,10 +741,9 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			if delta.get("mult_add",0) != 0: parts.append("倍率+%.1f" % delta.get("mult_add",0))
 			if delta.get("mult_factor",1) != 1: parts.append("倍率×%.1f" % delta.get("mult_factor",1))
 			var desc = "  ".join(parts) if parts else ""
-			formula_label.text = "%s → %d" % [desc, running_score]
+			formula_label.text = "🧪 %s %s → %d" % [step.get("label",""), desc, running_score]
 			var icon = "🧪" if step_type == "consumable" else "🃏"
-			var name = step.get("label", "道具")
-			var cons_row = _make_step_label(icon, name, desc, "→ %d" % running_score, GameTheme.COLOR_ACCENT)
+			var cons_row = _make_step_label(icon, step.get("label","道具"), desc, "→ %d" % running_score, GameTheme.COLOR_ACCENT)
 			calc_steps_list.add_child(cons_row)
 			_fade_in_row(cons_row)
 			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0))
@@ -772,46 +768,47 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			_add_calc_step_row(step, base_chips)
 			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0), dsm)
 
-	# ── Phase 3: 显示暴击前分数 ──
-	await get_tree().create_timer(0.25).timeout
-	var pre_crit_score = running_score
+	# ── Phase 3: 最终得分 ──
+	await get_tree().create_timer(0.3).timeout
 	if is_crit:
-		# 先显示暴击前分数
-		final_score_label.text = "%d" % pre_crit_score
-		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
-		score_burst_label.text = "+%d" % pre_crit_score
-		score_burst_label.modulate.a = 0.6
-		await get_tree().create_timer(0.35).timeout
+		# 先显示暴击前分数（灰色小字）
+		score_burst_label.text = "%d" % running_score
+		score_burst_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
+		score_burst_label.modulate.a = 1.0
+		score_burst_label.add_theme_font_size_override("font_size", 22)
+		formula_label.text = "基础得分: %d" % running_score
+		await get_tree().create_timer(0.5).timeout
 
-		# ── Phase 4: 暴击膨胀！ ──
+		# ── Phase 4: 暴击大特效！ ──
 		crit_banner.text = "💥 暴击！  ×%.1f" % cm
 		crit_banner.visible = true
 		crit_banner.scale = Vector2(0.3, 0.3)
 		crit_banner.modulate.a = 1.0
 		var tw = create_tween()
-		tw.tween_property(crit_banner, "scale", Vector2(1.5, 1.5), 0.15).set_ease(Tween.EASE_OUT)
-		tw.tween_property(crit_banner, "scale", Vector2(1.0, 1.0), 0.12).set_ease(Tween.EASE_IN)
-		await get_tree().create_timer(0.35).timeout
+		tw.tween_property(crit_banner, "scale", Vector2(2.0, 2.0), 0.15).set_ease(Tween.EASE_OUT)
+		tw.tween_property(crit_banner, "scale", Vector2(1.0, 1.0), 0.15).set_ease(Tween.EASE_IN)
+		await get_tree().create_timer(0.4).timeout
 
-		# 分数变成暴击后
-		var crit_score = int(pre_crit_score * cm)
-		final_score_label.text = "%d" % crit_score
-		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
-		score_burst_label.text = "+%d 💥" % crit_score
+		# 分数更新为暴击后值（红色大字）
+		var crit_score = int(running_score * cm)
+		score_burst_label.text = "+%d" % crit_score
+		score_burst_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
 		score_burst_label.modulate.a = 1.0
+		score_burst_label.add_theme_font_size_override("font_size", 32)
 		score_burst_label.scale = Vector2(0.5, 0.5)
 		var tw2 = create_tween()
-		tw2.tween_property(score_burst_label, "scale", Vector2(1.3, 1.3), 0.12).set_ease(Tween.EASE_OUT)
+		tw2.tween_property(score_burst_label, "scale", Vector2(1.4, 1.4), 0.12).set_ease(Tween.EASE_OUT)
 		tw2.tween_property(score_burst_label, "scale", Vector2(1.0, 1.0), 0.10).set_ease(Tween.EASE_IN)
+		formula_label.text = "💥 %d × %.1f = %d" % [running_score, cm, crit_score]
 	else:
-		# 无暴击 — 直接显示最终分数
-		final_score_label.text = "%d" % final_sc
-		final_score_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+		# 无暴击 — 直接显示最终得分
 		score_burst_label.text = "+%d" % final_sc
+		score_burst_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 		score_burst_label.modulate.a = 1.0
 		score_burst_label.scale = Vector2.ONE
+		score_burst_label.add_theme_font_size_override("font_size", 32)
 
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(0.8).timeout
 	await _fade_score_burst()
 
 
