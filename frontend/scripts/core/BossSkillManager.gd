@@ -56,38 +56,41 @@ const COUNTER_ITEMS = {
 
 # ── 大妖技能状态 ──
 var current_skill: BossSkill = BossSkill.NONE
-var phantom_indices: Array = []       # 幻影牌索引
-var face_down_indices: Array = []     # 背面朝上索引
+var phantom_cards: Array = []        # 幻影牌对象（排序安全）
+var face_down_cards: Array = []      # 背面朝上牌对象（排序安全）
 var allowed_hand_ranks: Array = []    # 允许的牌型code列表
 var skill_suppressed: bool = false   # 克制道具生效中
 
 # ── 精英怪被动状态 ──
 var current_elite_passive: ElitePassive = ElitePassive.NONE
-var elite_locked_indices: Array = []      # 精英怪锁定的牌索引
-var elite_face_down_indices: Array = []   # 精英怪翻面的牌索引
+var elite_locked_cards: Array = []        # 精英怪锁定的牌对象（排序安全）
+var elite_face_down_cards: Array = []     # 精英怪翻面的牌对象（排序安全）
 var first_play_nerfed: bool = false       # 本回合第1次出牌是否被削弱
 
 # 检查牌是否可选（同时考虑大妖幻影牌 + 精英怪锁定牌）
 func is_card_selectable(card_index: int, hand: Array) -> bool:
+	var card = hand[card_index] if card_index < hand.size() else null
 	# 大妖幻影牌
 	if current_skill == BossSkill.PHANTOM_CARDS and not skill_suppressed:
-		if card_index in phantom_indices:
+		if card and card in phantom_cards:
 			return false
-	# 精英怪锁定牌
-	if current_elite_passive == ElitePassive.LOCK_CARD:
-		if card_index in elite_locked_indices:
+	# 精英怪锁定牌（v3.1: 克制道具也压制精英被动）
+	if current_elite_passive == ElitePassive.LOCK_CARD and not skill_suppressed:
+		if card and card in elite_locked_cards:
 			return false
 	return true
 
 # 检查牌是否可见（同时考虑大妖翻面 + 精英怪翻面）
 func is_card_visible(card_index: int) -> bool:
+	var hand = DeckManager.hand
+	var card = hand[card_index] if card_index < hand.size() else null
 	# 大妖翻面
 	if current_skill == BossSkill.SANDSTORM and not skill_suppressed:
-		if card_index in face_down_indices:
+		if card and card in face_down_cards:
 			return false
 	# 精英怪翻面（v3.1: 克制道具也压制精英被动）
 	if current_elite_passive == ElitePassive.FACE_DOWN and not skill_suppressed:
-		if card_index in elite_face_down_indices:
+		if card and card in elite_face_down_cards:
 			return false
 	return true
 
@@ -167,28 +170,28 @@ func does_consumable_counter_skill(consumable_id: String) -> bool:
 # 重置（新回合开始）
 func reset():
 	current_skill = BossSkill.NONE
-	phantom_indices.clear()
-	face_down_indices.clear()
+	phantom_cards.clear()
+	face_down_cards.clear()
 	allowed_hand_ranks.clear()
 	skill_suppressed = false
 	current_elite_passive = ElitePassive.NONE
-	elite_locked_indices.clear()
-	elite_face_down_indices.clear()
+	elite_locked_cards.clear()
+	elite_face_down_cards.clear()
 	first_play_nerfed = false
 
 # ---- 内部方法 ----
 
 func _mark_phantom_cards(hand: Array):
-	# 随机标记2张牌为幻影牌
+	# 随机标记2张牌为幻影牌（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	phantom_indices = indices.slice(0, 2)
+	phantom_cards = [hand[indices[0]], hand[indices[1]]]
 
 func _mark_face_down_cards(hand: Array):
-	# 随机标记3张牌背面朝上
+	# 随机标记3张牌背面朝上（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	face_down_indices = indices.slice(0, 3)
+	face_down_cards = [hand[indices[0]], hand[indices[1]], hand[indices[2]]]
 
 func _select_allowed_hand_ranks():
 	# 从9种牌型中随机选2种
@@ -197,23 +200,23 @@ func _select_allowed_hand_ranks():
 	allowed_hand_ranks = all_ranks.slice(0, 2)
 
 func _mark_elite_locked_card(hand: Array):
-	# 骷髅将：随机1张手牌不可选中
+	# 骷髅将：随机1张手牌不可选中（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	elite_locked_indices = indices.slice(0, 1)
+	elite_locked_cards = [hand[indices[0]]]
 
 func _mark_elite_face_down_card(hand: Array):
-	# 小旋风：随机1张手牌背面朝上
+	# 小旋风：随机1张手牌背面朝上（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	elite_face_down_indices = indices.slice(0, 1)
+	elite_face_down_cards = [hand[indices[0]]]
 
 func _get_skill_params() -> Dictionary:
 	match current_skill:
 		BossSkill.PHANTOM_CARDS:
-			return {"phantom_count": 2, "phantom_indices": phantom_indices}
+			return {"phantom_count": 2, "phantom_cards": phantom_cards}
 		BossSkill.SANDSTORM:
-			return {"face_down_count": 3, "face_down_indices": face_down_indices}
+			return {"face_down_count": 3, "face_down_cards": face_down_cards}
 		BossSkill.HOLY_FIRE:
 			return {"allowed_ranks": allowed_hand_ranks}
 		_:
