@@ -18,12 +18,24 @@ signal play_result_received(result: Dictionary)
 signal boss_skill_activated(skill_name: String, params: Dictionary)
 signal boss_skill_suppressed()
 
-const BLIND_NAMES = ["小兵", "精英怪", "大妖"]
+# 怪物名表: [round][blind] — 小怪/精英怪/大妖
+const MONSTER_NAMES = [
+	["小钻风", "巡山妖将", "白骨精"],   # R1
+	["黄狮精", "虎先锋", "黄风怪"],     # R2
+	["火云童子", "牛妖王", "红孩儿"],   # R3
+]
+
+# 精英怪技能（blind=1时触发）
+const ELITE_SKILLS = [
+	"伏击：出牌-1",        # R1 巡山妖将
+	"狂风：换牌-2",        # R2 虎先锋
+	"烈焰护甲：伤害-25%",  # R3 牛妖王
+]
 
 var current_round: int  = 0
 var current_blind: int  = 0
 var plays_left:    int  = 4
-var discards_left: int  = 4
+var discards_left: int  = 5   # v3.1: 每怪5次换牌
 var round_score:   int  = 0
 var total_score:   int  = 0
 var revive_count:  int  = 0
@@ -52,13 +64,37 @@ func get_current_threshold() -> int:
 	return thresholds[current_round][current_blind]
 
 func get_current_blind_name() -> String:
-	return BLIND_NAMES[current_blind]
+	return MONSTER_NAMES[current_round][current_blind]
+
+func get_current_monster_name() -> String:
+	return MONSTER_NAMES[current_round][current_blind]
+
+func get_current_elite_skill() -> String:
+	if current_blind == 1:
+		return ELITE_SKILLS[current_round]
+	return ""
+
+func get_current_boss_skill_name() -> String:
+	if current_blind == 2:
+		return BossSkillManager.SKILL_NAMES.get(BossSkillManager.current_skill, "")
+	return ""
+
+func get_current_enemy_skill_text() -> String:
+	if current_blind == 2:
+		var name = BossSkillManager.SKILL_NAMES.get(BossSkillManager.current_skill, "")
+		var desc = BossSkillManager.SKILL_DESCRIPTIONS.get(BossSkillManager.current_skill, "")
+		if BossSkillManager.skill_suppressed:
+			return "👹 %s（已克制）" % name
+		return "👹 %s：%s" % [name, desc]
+	elif current_blind == 1:
+		return "⚔️ %s" % ELITE_SKILLS[current_round]
+	return ""
 
 func start_new_game():
 	current_round = 0
 	current_blind = 0
 	plays_left    = 4
-	discards_left = 4
+	discards_left = 5
 	round_score   = 0
 	total_score   = 0
 	revive_count  = 0
@@ -160,7 +196,7 @@ func _on_blind_cleared():
 func _reset_blind():
 	round_score   = 0
 	plays_left    = 4
-	discards_left = 4
+	discards_left = 5  # v3.1: 每怪5次换牌
 	DeckManager.reset()
 	# v3.1: 大妖技能触发
 	BossSkillManager.apply_skill(current_round, current_blind)

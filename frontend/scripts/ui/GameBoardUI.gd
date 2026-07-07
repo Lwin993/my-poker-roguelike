@@ -189,16 +189,17 @@ func _update_ui():
 	coins_label.text  = "$%d" % RoundManager.game_coins
 	total_score_label.text = "累计总分: %d" % RoundManager.total_score
 
-	# v3.1: 大妖技能提示
-	if BossSkillManager.current_skill != BossSkillManager.BossSkill.NONE:
-		var skill_name = BossSkillManager.SKILL_NAMES.get(BossSkillManager.current_skill, "")
-		var skill_desc = BossSkillManager.SKILL_DESCRIPTIONS.get(BossSkillManager.current_skill, "")
-		if BossSkillManager.skill_suppressed:
-			boss_skill_label.text = "👹 %s (已克制!)" % skill_name
+	# v3.1: 怪物名+技能提示
+	var monster_name = RoundManager.get_current_monster_name()
+	var skill_text = RoundManager.get_current_enemy_skill_text()
+	if skill_text != "":
+		boss_skill_label.text = skill_text
+		if skill_text.find("已克制") != -1:
 			boss_skill_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5, 1))
-		else:
-			boss_skill_label.text = "👹 %s: %s" % [skill_name, skill_desc]
+		elif skill_text.find("👹") != -1:
 			boss_skill_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 1))
+		else:
+			boss_skill_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2, 1))
 	else:
 		boss_skill_label.text = ""
 
@@ -213,8 +214,8 @@ func _update_ui():
 
 	var threshold = RoundManager.get_current_threshold()
 	score_label.text     = "%d" % RoundManager.round_score
-	threshold_label.text = "Score at least %d" % threshold
-	round_score_detail.text = "Round score %d" % RoundManager.round_score
+	threshold_label.text = "❤️ 血量: %d / %d" % [RoundManager.round_score, threshold]
+	round_score_detail.text = "已造成伤害: %d" % RoundManager.round_score
 	progress_bar.max_value = threshold
 	progress_bar.value     = min(RoundManager.round_score, threshold)
 
