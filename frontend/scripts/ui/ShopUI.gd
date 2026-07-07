@@ -57,7 +57,8 @@ func _check_rare_boost() -> bool:
 func _update_header():
 	var r = RoundManager.current_round + 1
 	var b = RoundManager.current_blind
-	var bn = ["小盲","大盲","Boss"][clamp(b-1,0,2)] if b > 0 else "小盲"
+	# v3.1: 用怪物名替代"小盲/大盲/Boss"
+	var bn = RoundManager.get_current_blind_name() if b >= 0 else "—"
 	sub_title.text = "第 %d 轮 · %s 通关！ 获得 💎%d" % [
 		r, bn, RoundManager.coin_rewards[RoundManager.current_round][clamp(b-1,0,2)]
 	]

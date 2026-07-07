@@ -63,7 +63,7 @@ func preview_params(
 	active_consumables: Array,
 	remaining_hand: Array
 ) -> Dictionary:
-	var result = _build_steps(hand_result, joker_states, active_consumables, remaining_hand)
+	var result = _build_steps(hand_result, joker_states, active_consumables, remaining_hand, true)
 	return result.get("params", {"chips": 0, "mult": 1.0, "crit_rate": 0.05, "crit_mult": 2.0, "special_mult": 1.0})
 
 # ----------------------------------------------------------------
@@ -76,7 +76,8 @@ func _build_steps(
 	hand_result: Dictionary,
 	joker_states: Array,
 	active_consumables: Array,
-	remaining_hand: Array
+	remaining_hand: Array,
+	is_preview: bool = false
 ) -> Dictionary:
 
 	var base_chips   = hand_result.get("base_chips", 0)
@@ -171,13 +172,20 @@ func _build_steps(
 			break
 
 	# Step M+1~N：每张法宝按顺序触发
+	var sm_prob = -1.0  # 预览时显示概率
 	for js in joker_states:
-		var delta = js.get_passive_modifiers(hand_result)
+		var delta = js.get_passive_modifiers(hand_result) if not is_preview else (
+			js.get_preview_modifiers(hand_result) if js.has_method("get_preview_modifiers") 
+			else js.get_passive_modifiers(hand_result)
+		)
 		var ca    = delta.get("chip_add",       0.0)
 		var ma    = delta.get("mult_add",       0.0)
 		var dcr   = delta.get("crit_rate_add",  0.0)
 		var dcm   = delta.get("crit_mult_add",  0.0)
 		var dsm   = delta.get("special_mult",   1.0)
+		var dprob  = delta.get("special_mult_prob", -1.0)
+		if dprob >= 0.0:
+			sm_prob = dprob
 
 		chips        += ca
 		mult         += ma
@@ -209,6 +217,7 @@ func _build_steps(
 			"crit_rate":    clampf(crit_rate, 0.0, 1.0),
 			"crit_mult":    crit_mult,
 			"special_mult": special_mult,
+			"special_mult_prob": sm_prob,
 		},
 		"steps": steps,
 	}

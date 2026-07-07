@@ -232,20 +232,25 @@ func _update_params_panel(hand_result: Dictionary = {}):
 	_base_score_preview = hand_result.get("base_chips", 0) + hand_result.get("card_chips", 0)
 	var params = ScoreCalculator.preview_params(
 		hand_result,
-		[],
+		ItemManager.get_active_joker_states(),
 		_used_consumable_items,
 		DeckManager.hand
 	)
 	_apply_params_to_labels(
 		params.get("mult",      1.0),
 		params.get("crit_rate", 0.0),
-		params.get("crit_mult", 2.0)
+		params.get("crit_mult", 2.0),
+		params.get("special_mult", 1.0),
+		params.get("special_mult_prob", -1.0)
 	)
 
-func _apply_params_to_labels(mult: float, cr: float, cm: float):
+func _apply_params_to_labels(mult: float, cr: float, cm: float, sm: float = 1.0, sm_prob: float = -1.0):
 	mult_label.text      = "基础伤害 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
 	crit_rate_label.text = "暴击率 %d%%" % int(cr * 100)
 	crit_mult_label.text = "暴击倍数 ×%.1f" % cm
+	if sm > 1.01:
+		var prob_str = " (%d%%概率)" % int(sm_prob * 100) if sm_prob >= 0.0 else ""
+		crit_mult_label.text += "\n🎭 ×%.0f%s" % [sm, prob_str]
 
 	mult_label.add_theme_color_override("font_color",
 		GameTheme.COLOR_GOLD if mult > 1.01 else GameTheme.COLOR_BLUE_CHIP)
@@ -339,10 +344,9 @@ func _apply_card_style(btn: Button, sc: Color, selected: bool):
 	btn.add_theme_stylebox_override("pressed", normal)
 
 func _on_card_pressed(idx: int):
-	# v3.1: 被锁定/翻面的牌不可选中（骷髅将/白骨幻术/小旋风/风沙走石）
+	# v3.1: 被锁定的牌不可选中（骷髅将/白骨幻术）
+	# 翻面的牌（小旋风/风沙走石）可以选中但看不到内容
 	if not BossSkillManager.is_card_selectable(idx, DeckManager.hand):
-		return
-	if not BossSkillManager.is_card_visible(idx):
 		return
 	if _selected_indices.has(idx): _selected_indices.erase(idx)
 	elif _selected_indices.size() < 5: _selected_indices.append(idx)
@@ -410,23 +414,37 @@ func _update_played_preview():
 		return
 	for idx in _selected_indices:
 		if idx >= 0 and idx < DeckManager.hand.size():
-			played_area.add_child(_make_table_card(DeckManager.hand[idx]))
+			played_area.add_child(_make_table_card(DeckManager.hand[idx], idx))
 
-func _make_table_card(card) -> Button:
+func _make_table_card(card, idx: int = -1) -> Button:
+	var is_hidden = (idx >= 0 and not BossSkillManager.is_card_visible(idx))
 	var sc = SUIT_COLORS[card.suit]
 	var btn = Button.new()
 	btn.disabled = true
 	btn.custom_minimum_size = Vector2(58, 86)
-	btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
-	btn.add_theme_font_size_override("font_size", 19)
-	btn.add_theme_color_override("font_color", sc)
-	var style = GameTheme.get_card_style(sc, false)
-	style.content_margin_left = 6
-	style.content_margin_right = 6
-	style.content_margin_top = 10
-	style.content_margin_bottom = 10
-	btn.add_theme_stylebox_override("disabled", style)
-	btn.add_theme_color_override("font_disabled_color", sc)
+	if is_hidden:
+		btn.text = "?\n?"
+		btn.add_theme_font_size_override("font_size", 19)
+		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 1))
+		var style = GameTheme.get_card_style(Color(0.4, 0.4, 0.4, 1), false)
+		style.content_margin_left = 6
+		style.content_margin_right = 6
+		style.content_margin_top = 10
+		style.content_margin_bottom = 10
+		btn.add_theme_stylebox_override("disabled", style)
+		btn.add_theme_color_override("font_disabled_color", Color(0.6, 0.6, 0.6, 1))
+		btn.tooltip_text = "此牌被遮挡，无法查看"
+	else:
+		btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
+		btn.add_theme_font_size_override("font_size", 19)
+		btn.add_theme_color_override("font_color", sc)
+		var style = GameTheme.get_card_style(sc, false)
+		style.content_margin_left = 6
+		style.content_margin_right = 6
+		style.content_margin_top = 10
+		style.content_margin_bottom = 10
+		btn.add_theme_stylebox_override("disabled", style)
+		btn.add_theme_color_override("font_disabled_color", sc)
 	return btn
 
 # ════════════════════════════════════════════════════════════════
