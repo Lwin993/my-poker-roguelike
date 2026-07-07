@@ -10,7 +10,7 @@ config_version=5
 
 [application]
 
-config/name="块游记"
+config/name="快游记"
 config/description="西游记主题扑克 Roguelike — 降妖除魔，爽感拉满"
 config/version="1.0.0"
 run/main_scene="res://scenes/Main.tscn"

@@ -1,15 +1,24 @@
-# BossSkillManager.gd - Autoload 大妖技能状态机
-# v3.1: 三大妖技能 + 克制道具系统
+# BossSkillManager.gd - Autoload 敌方技能状态机
+# v3.1: 大妖技能 + 精英怪被动效果 + 克制道具系统
 extends Node
 
 signal boss_skill_activated(skill_name: String, params: Dictionary)
 signal boss_skill_suppressed()
 
+# ── 大妖技能枚举 ──
 enum BossSkill {
 	NONE,
 	PHANTOM_CARDS,    # 白骨幻术：2张幻影牌(不可选)
 	SANDSTORM,        # 风沙走石：3张背面朝上
 	HOLY_FIRE,        # 三昧真火：仅2种牌型可伤害
+}
+
+# ── 精英怪被动枚举 ──
+enum ElitePassive {
+	NONE,
+	LOCK_CARD,       # 骷髅将：每回合随机1张手牌不可选中
+	FACE_DOWN,       # 小旋风：每回合1张手牌背面朝上
+	FIRST_PLAY_NERF, # 火灵童：每回合第1次出牌伤害-25%
 }
 
 const SKILL_NAMES = {
@@ -25,33 +34,61 @@ const SKILL_DESCRIPTIONS = {
 	BossSkill.HOLY_FIRE: "仅2种牌型可造成伤害",
 }
 
-# 克制道具ID → 克制的技能
+const ELITE_PASSIVE_NAMES = {
+	ElitePassive.NONE: "",
+	ElitePassive.LOCK_CARD: "骷髅将",
+	ElitePassive.FACE_DOWN: "小旋风",
+	ElitePassive.FIRST_PLAY_NERF: "火灵童",
+}
+
+const ELITE_PASSIVE_DESCRIPTIONS = {
+	ElitePassive.LOCK_CARD: "每回合随机1张手牌不可选中",
+	ElitePassive.FACE_DOWN: "每回合1张手牌背面朝上",
+	ElitePassive.FIRST_PLAY_NERF: "每回合第1次出牌伤害-25%",
+}
+
+# 克制道具ID → 克制的技能（仅大妖）
 const COUNTER_ITEMS = {
 	"mirror_reveal": BossSkill.PHANTOM_CARDS,
 	"wind_calmer": BossSkill.SANDSTORM,
 	"holy_dew": BossSkill.HOLY_FIRE,
 }
 
+# ── 大妖技能状态 ──
 var current_skill: BossSkill = BossSkill.NONE
 var phantom_indices: Array = []       # 幻影牌索引
 var face_down_indices: Array = []     # 背面朝上索引
 var allowed_hand_ranks: Array = []    # 允许的牌型code列表
 var skill_suppressed: bool = false   # 克制道具生效中
 
-# 检查牌是否可选（考虑幻影牌和翻面牌）
+# ── 精英怪被动状态 ──
+var current_elite_passive: ElitePassive = ElitePassive.NONE
+var elite_locked_indices: Array = []      # 精英怪锁定的牌索引
+var elite_face_down_indices: Array = []   # 精英怪翻面的牌索引
+var first_play_nerfed: bool = false       # 本回合第1次出牌是否被削弱
+
+# 检查牌是否可选（同时考虑大妖幻影牌 + 精英怪锁定牌）
 func is_card_selectable(card_index: int, hand: Array) -> bool:
-	if current_skill == BossSkill.NONE or skill_suppressed:
-		return true
-	if card_index in phantom_indices:
-		return false  # 幻影牌不可选
+	# 大妖幻影牌
+	if current_skill == BossSkill.PHANTOM_CARDS and not skill_suppressed:
+		if card_index in phantom_indices:
+			return false
+	# 精英怪锁定牌
+	if current_elite_passive == ElitePassive.LOCK_CARD:
+		if card_index in elite_locked_indices:
+			return false
 	return true
 
-# 检查牌是否可见（考虑翻面牌）
+# 检查牌是否可见（同时考虑大妖翻面 + 精英怪翻面）
 func is_card_visible(card_index: int) -> bool:
-	if current_skill == BossSkill.NONE or skill_suppressed:
-		return true
-	if card_index in face_down_indices:
-		return false  # 背面朝上不可见
+	# 大妖翻面
+	if current_skill == BossSkill.SANDSTORM and not skill_suppressed:
+		if card_index in face_down_indices:
+			return false
+	# 精英怪翻面
+	if current_elite_passive == ElitePassive.FACE_DOWN:
+		if card_index in elite_face_down_indices:
+			return false
 	return true
 
 # 检查牌型是否被允许（考虑三昧真火限制）
@@ -60,32 +97,56 @@ func is_hand_rank_allowed(hand_rank: int) -> bool:
 		return true
 	return hand_rank in allowed_hand_ranks
 
-# 应用大妖技能（每回合开始调用）
+# 检查当前出牌是否被精英怪削弱（火灵童首打-25%）
+func is_first_play_nerfed() -> bool:
+	return current_elite_passive == ElitePassive.FIRST_PLAY_NERF and first_play_nerfed
+
+# 标记首打已消耗（出牌后调用）
+func consume_first_play_nerf():
+	first_play_nerfed = false
+
+# 应用敌方技能（每回合开始由RoundManager._reset_blind调用）
 func apply_skill(round: int, blind: int):
 	reset()
-	if blind != 2:
-		return  # 仅大妖(blind=2)回合触发
-
-	match round:
-		0: current_skill = BossSkill.PHANTOM_CARDS
-		1: current_skill = BossSkill.SANDSTORM
-		2: current_skill = BossSkill.HOLY_FIRE
-		_: current_skill = BossSkill.NONE
-
-	boss_skill_activated.emit(SKILL_NAMES.get(current_skill, ""), _get_skill_params())
+	if blind == 2:
+		# 大妖技能
+		match round:
+			0: current_skill = BossSkill.PHANTOM_CARDS
+			1: current_skill = BossSkill.SANDSTORM
+			2: current_skill = BossSkill.HOLY_FIRE
+			_: current_skill = BossSkill.NONE
+		if current_skill != BossSkill.NONE:
+			boss_skill_activated.emit(SKILL_NAMES.get(current_skill, ""), _get_skill_params())
+	elif blind == 1:
+		# 精英怪被动
+		match round:
+			0: current_elite_passive = ElitePassive.LOCK_CARD
+			1: current_elite_passive = ElitePassive.FACE_DOWN
+			2: current_elite_passive = ElitePassive.FIRST_PLAY_NERF
+			_: current_elite_passive = ElitePassive.NONE
+	# blind == 0（小兵）: 无技能
 
 # 执行技能效果（在手牌生成后调用）
 func execute_skill_on_hand(hand: Array):
-	if current_skill == BossSkill.NONE or skill_suppressed:
-		return
+	# 大妖技能
+	if current_skill != BossSkill.NONE and not skill_suppressed:
+		match current_skill:
+			BossSkill.PHANTOM_CARDS:
+				_mark_phantom_cards(hand)
+			BossSkill.SANDSTORM:
+				_mark_face_down_cards(hand)
+			BossSkill.HOLY_FIRE:
+				_select_allowed_hand_ranks()
 
-	match current_skill:
-		BossSkill.PHANTOM_CARDS:
-			_mark_phantom_cards(hand)
-		BossSkill.SANDSTORM:
-			_mark_face_down_cards(hand)
-		BossSkill.HOLY_FIRE:
-			_select_allowed_hand_ranks()
+	# 精英怪被动
+	if current_elite_passive != ElitePassive.NONE:
+		match current_elite_passive:
+			ElitePassive.LOCK_CARD:
+				_mark_elite_locked_card(hand)
+			ElitePassive.FACE_DOWN:
+				_mark_elite_face_down_card(hand)
+			ElitePassive.FIRST_PLAY_NERF:
+				first_play_nerfed = true  # 标记本回合首打出牌-25%
 
 func suppress_skill():
 	if skill_suppressed:
@@ -107,6 +168,10 @@ func reset():
 	face_down_indices.clear()
 	allowed_hand_ranks.clear()
 	skill_suppressed = false
+	current_elite_passive = ElitePassive.NONE
+	elite_locked_indices.clear()
+	elite_face_down_indices.clear()
+	first_play_nerfed = false
 
 # ---- 内部方法 ----
 
@@ -127,6 +192,18 @@ func _select_allowed_hand_ranks():
 	var all_ranks = [0, 1, 2, 3, 4, 5, 6, 7, 8]
 	all_ranks.shuffle()
 	allowed_hand_ranks = all_ranks.slice(0, 2)
+
+func _mark_elite_locked_card(hand: Array):
+	# 骷髅将：随机1张手牌不可选中
+	var indices = range(hand.size())
+	indices.shuffle()
+	elite_locked_indices = indices.slice(0, 1)
+
+func _mark_elite_face_down_card(hand: Array):
+	# 小旋风：随机1张手牌背面朝上
+	var indices = range(hand.size())
+	indices.shuffle()
+	elite_face_down_indices = indices.slice(0, 1)
 
 func _get_skill_params() -> Dictionary:
 	match current_skill:

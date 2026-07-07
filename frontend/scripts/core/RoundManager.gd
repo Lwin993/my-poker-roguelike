@@ -18,18 +18,18 @@ signal play_result_received(result: Dictionary)
 signal boss_skill_activated(skill_name: String, params: Dictionary)
 signal boss_skill_suppressed()
 
-# 怪物名表: [round][blind] — 小怪/精英怪/大妖
+# 怪物名表: [round][blind] — 小怪/精英怪/大妖（按v3.1设计文档）
 const MONSTER_NAMES = [
-	["小钻风", "巡山妖将", "白骨精"],   # R1
-	["黄狮精", "虎先锋", "黄风怪"],     # R2
-	["火云童子", "牛妖王", "红孩儿"],   # R3
+	["游魂", "骷髅将", "白骨精"],   # R1
+	["黄毛貂", "小旋风", "黄风怪"],  # R2
+	["火蚁兵", "火灵童", "红孩儿"],  # R3
 ]
 
-# 精英怪技能（blind=1时触发）
+# 精英怪被动效果（blind=1时触发，按v3.1设计文档）
 const ELITE_SKILLS = [
-	"伏击：出牌-1",        # R1 巡山妖将
-	"狂风：换牌-2",        # R2 虎先锋
-	"烈焰护甲：伤害-25%",  # R3 牛妖王
+	"骷髅将：每回合随机1张手牌不可选中",   # R1
+	"小旋风：每回合1张手牌背面朝上",       # R2
+	"火灵童：每回合第1次出牌伤害-25%",     # R3
 ]
 
 var current_round: int  = 0
@@ -46,9 +46,9 @@ var current_phase: int  = Phase.MAIN_MENU
 # 门槛表（可被远程配置覆盖）
 # v3.1: HP从旧值调整至新曲线
 var thresholds: Array = [
-	[300, 600, 1500],      # R1: 小兵/精英怪/大妖(白骨精)
-	[1000, 2500, 6000],    # R2: 小兵/精英怪/大妖(黄风怪)
-	[3500, 8000, 15000]    # R3: 小兵/精英怪/大妖(红孩儿)
+	[300, 600, 1500],      # R1: 游魂/骷髅将/白骨精
+	[1000, 2500, 6000],    # R2: 黄毛貂/小旋风/黄风怪
+	[3500, 8000, 15000]    # R3: 火蚁兵/火灵童/红孩儿
 ]
 
 # v3.1: 灵石奖励表（替代旧金币奖励）
@@ -87,7 +87,9 @@ func get_current_enemy_skill_text() -> String:
 			return "👹 %s（已克制）" % name
 		return "👹 %s：%s" % [name, desc]
 	elif current_blind == 1:
-		return "⚔️ %s" % ELITE_SKILLS[current_round]
+		var pname = BossSkillManager.ELITE_PASSIVE_NAMES.get(BossSkillManager.current_elite_passive, "")
+		var pdesc = BossSkillManager.ELITE_PASSIVE_DESCRIPTIONS.get(BossSkillManager.current_elite_passive, "")
+		return "⚔️ %s：%s" % [pname, pdesc]
 	return ""
 
 func start_new_game():
@@ -139,6 +141,10 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 	round_score += gained
 	total_score += gained
 	plays_left  -= 1
+
+	# 火灵童被动：首打出牌后消耗
+	if BossSkillManager.is_first_play_nerfed():
+		BossSkillManager.consume_first_play_nerf()
 
 	play_log.append({
 		"round": current_round,

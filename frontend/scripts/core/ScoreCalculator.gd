@@ -27,6 +27,7 @@ func calculate(
 	var score = chips * mult
 	if is_crit: score *= crit_mult
 	score *= special_mult
+	score *= elite_nerf   # 精英怪首打削弱
 
 	return {
 		"score":        int(score),
@@ -84,6 +85,7 @@ func _build_steps(
 	var crit_rate    = 0.05   # v3.1: 基础暴击率5%
 	var crit_mult    = 2.0   # v3.1: 基础暴击倍率×2.0
 	var special_mult = 1.0
+	var elite_nerf   = 1.0   # 精英怪首打削弱系数
 	var steps: Array = []
 
 	# Step 0：基础牌型（chips = baseChips + cardChips, mult = baseMult）
@@ -97,6 +99,20 @@ func _build_steps(
 		"partial":    int(chips * mult),
 		"delta":      {},
 	})
+
+	# Step 0.5：精英怪被动效果（火灵童首打-25%）
+	if BossSkillManager.is_first_play_nerfed():
+		elite_nerf = 0.75
+		steps.append({
+			"type":      "elite_nerf",
+			"label":     "火灵童：首打-25%",
+			"chips":     chips,
+			"mult":      mult,
+			"crit_rate": crit_rate,
+			"crit_mult": crit_mult,
+			"partial":   int(chips * mult * elite_nerf),
+			"delta":     {"special_mult": 0.75},
+		})
 
 	# Step 1~M：消耗品/道具直接修改参数
 	for item in active_consumables:
