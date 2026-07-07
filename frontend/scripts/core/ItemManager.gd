@@ -28,12 +28,16 @@ func get_item_data(id: String) -> Dictionary:
 func buy_item(item_data: Dictionary) -> bool:
 	var price = item_data.get("price", 0)
 	if RoundManager.game_coins < price: return false
-	if item_data.get("item_type", 1) != 0 and not can_add_consumable():
+	var item_type = item_data.get("item_type", 1)
+	# v3.1: 法宝不可重复购买
+	if item_type == 0 and has_joker(item_data.get("id", "")):
+		return false
+	if item_type != 0 and not can_add_consumable():
 		return false
 	RoundManager.game_coins -= price
 
 	var effect = _create_effect(item_data)
-	if item_data.get("item_type", 1) == 0:
+	if item_type == 0:
 		jokers.append(effect)
 	else:
 		consumables.append(effect)

@@ -13,6 +13,7 @@ var _has_free_refresh: bool = false
 var _rare_boost: bool = false
 var _current_shop_node: int = 0
 var _pending_shop_items: Array = []  # items from API, waiting to render
+var _current_shop_items: Array = []  # v3.1: cached for re-render after buy
 
 func _ready():
 	_style_button(continue_button, GameTheme.COLOR_ACCENT)
@@ -75,6 +76,7 @@ func _load_shop_items():
 
 # Callback when shop items are loaded from API
 func _on_shop_items_loaded(items: Array):
+	_current_shop_items = items  # v3.1: 缓存商品数据
 	for c in shop_grid.get_children(): c.queue_free()
 	for item in items:
 		shop_grid.add_child(_make_shop_card(item))
@@ -168,6 +170,10 @@ func _on_buy_pressed(item_id: String, item_data: Dictionary):
 		return
 	# Then confirm with backend
 	GameAPI.buy_item(item_id, _current_shop_node)
+	# v3.1: 购买后刷新UI（更新已拥有状态 + 灵石余额）
+	_on_shop_items_loaded(_current_shop_items)
+	_rebuild_owned_panel()
+	coins_label.text = "💎  %d" % RoundManager.game_coins
 
 # ---- 已持有道具 ----
 func _rebuild_owned_panel():
@@ -335,4 +341,12 @@ func _on_buy_completed(data: Dictionary):
 	GameState.save_state()
 
 func _on_continue_pressed():
-	RoundManager._set_phase(RoundManager.Phase.PLAYING)
+	# v3.1: 大妖通关后，商店关闭时推进到下一轮
+	if RoundManager._pending_next_round:
+		RoundManager._pending_next_round = false
+		RoundManager.current_round += 1
+		RoundManager.current_blind  = 0
+		RoundManager._reset_blind()
+		RoundManager._set_phase(RoundManager.Phase.ROUND_START)
+	else:
+		RoundManager._set_phase(RoundManager.Phase.PLAYING)

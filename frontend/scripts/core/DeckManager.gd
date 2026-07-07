@@ -34,7 +34,7 @@ class Card:
 		if rank >= 11:   return 10   # J/Q/K
 		return rank                 # 2-10
 
-const HAND_LIMIT = 8
+var hand_limit: int = 8  # v3.1: 可被筋斗云临时增加
 const DECK_SIZE = 52
 
 var deck: Array = []
@@ -42,6 +42,7 @@ var hand: Array = []
 var discard_pile: Array = []
 
 func reset():
+	hand_limit = 8  # 重置手牌上限
 	deck.clear()
 	hand.clear()
 	discard_pile.clear()
@@ -65,14 +66,14 @@ func _shuffle():
 
 # 补手牌到上限
 func draw_to_hand_limit():
-	while hand.size() < HAND_LIMIT and deck.size() > 0:
+	while hand.size() < hand_limit and deck.size() > 0:
 		hand.append(deck.pop_back())
 	# 牌堆耗尽：洗回弃牌区
 	if deck.size() == 0 and discard_pile.size() > 0:
 		deck = discard_pile.duplicate()
 		discard_pile.clear()
 		_shuffle()
-		while hand.size() < HAND_LIMIT and deck.size() > 0:
+		while hand.size() < hand_limit and deck.size() > 0:
 			hand.append(deck.pop_back())
 
 # 出牌：从手牌移走选中的5张，放入弃牌区，补牌

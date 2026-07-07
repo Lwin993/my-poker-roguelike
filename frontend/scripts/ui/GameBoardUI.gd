@@ -608,6 +608,9 @@ func _on_consumable_used(item_id: String, cons, panel: Control):
 	# Apply special effects immediately on use (e.g., ExtraPlayTicket adds plays)
 	if cons.has_method("apply_special_effect"):
 		cons.apply_special_effect()
+		# 筋斗云增加手牌后需要重建手牌显示
+		if cons.resource_data.get("id", "") == "cloud_step":
+			_rebuild_hand()
 	panel.queue_free()
 	_update_params_panel()
 	if _selected_indices.size() == 5:

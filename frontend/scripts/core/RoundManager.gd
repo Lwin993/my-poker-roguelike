@@ -42,6 +42,7 @@ var revive_count:  int  = 0
 var game_coins:    int  = 0
 var play_log:      Array = []
 var current_phase: int  = Phase.MAIN_MENU
+var _pending_next_round: bool = false  # 大妖通关后，商店关闭时推进到下一轮
 
 # 门槛表（可被远程配置覆盖）
 # v3.1: HP从旧值调整至新曲线
@@ -186,14 +187,13 @@ func _on_blind_cleared():
 
 	if current_blind == 2:
 		if current_round == 2:
-			# 游戏通关
+			# 游戏通关 — 提交结果后进结算
 			GameAPI.submit_result()
 			_set_phase(Phase.FINAL_RESULT)
 		else:
-			current_round += 1
-			current_blind  = 0
-			_reset_blind()
-			_set_phase(Phase.ROUND_START)
+			# 大妖通关 → 先进商店 → 商店关闭后推进到下一轮
+			_pending_next_round = true
+			_set_phase(Phase.SHOP)
 	else:
 		current_blind += 1
 		_reset_blind()
