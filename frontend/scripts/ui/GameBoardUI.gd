@@ -741,13 +741,13 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	formula_label.text = "%d(手牌) × %.0f(牌型) = %d" % [base_chips, base_mult, running_score]
 	_apply_params_to_labels(base_mult, 0.05, 2.0)
 	_add_calc_step_row(base_step, base_chips)
-	await get_tree().create_timer(0.35).timeout
+	await get_tree().create_timer(0.6).timeout
 
 	# ── Phase 2: 逐步展示各效果 ──
 	for i in range(1, steps.size()):
 		var step = steps[i]
 		var step_type = step.get("type", "")
-		await get_tree().create_timer(0.22).timeout
+		await get_tree().create_timer(0.45).timeout
 
 		if step_type == "elite_nerf":
 			running_score = int(running_score * 0.75)
@@ -794,7 +794,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0), dsm)
 
 	# ── Phase 3: 最终得分 ──
-	await get_tree().create_timer(0.3).timeout
+	await get_tree().create_timer(0.5).timeout
 	if is_crit:
 		# 先显示暴击前分数（灰色小字）
 		score_burst_label.text = "%d" % running_score
@@ -802,7 +802,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		score_burst_label.modulate.a = 1.0
 		score_burst_label.add_theme_font_size_override("font_size", 22)
 		formula_label.text = "基础得分: %d" % running_score
-		await get_tree().create_timer(0.5).timeout
+		await get_tree().create_timer(0.8).timeout
 
 		# ── Phase 4: 暴击大特效！ ──
 		crit_banner.text = "💥 暴击！  ×%.1f" % cm
@@ -810,9 +810,9 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		crit_banner.scale = Vector2(0.3, 0.3)
 		crit_banner.modulate.a = 1.0
 		var tw = create_tween()
-		tw.tween_property(crit_banner, "scale", Vector2(2.0, 2.0), 0.15).set_ease(Tween.EASE_OUT)
+		tw.tween_property(crit_banner, "scale", Vector2(2.0, 2.0), 0.2).set_ease(Tween.EASE_OUT)
 		tw.tween_property(crit_banner, "scale", Vector2(1.0, 1.0), 0.15).set_ease(Tween.EASE_IN)
-		await get_tree().create_timer(0.4).timeout
+		await get_tree().create_timer(0.6).timeout
 
 		# 分数更新为暴击后值（红色大字）
 		var crit_score = int(running_score * cm)
@@ -833,7 +833,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		score_burst_label.scale = Vector2.ONE
 		score_burst_label.add_theme_font_size_override("font_size", 32)
 
-	await get_tree().create_timer(0.8).timeout
+	await get_tree().create_timer(1.2).timeout
 	await _fade_score_burst()
 
 
