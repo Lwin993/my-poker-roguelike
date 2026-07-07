@@ -186,7 +186,7 @@ func _refresh_all():
 # ════════════════════════════════════════════════════════════════
 func _update_ui():
 	round_label.text  = RoundManager.get_current_blind_name()
-	coins_label.text  = "$%d" % RoundManager.game_coins
+	coins_label.text  = "💎 %d" % RoundManager.game_coins
 	total_score_label.text = "累计总分: %d" % RoundManager.total_score
 
 	# v3.1: 怪物名+技能提示

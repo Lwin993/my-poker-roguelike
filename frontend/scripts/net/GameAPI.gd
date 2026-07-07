@@ -2,7 +2,7 @@
 extends Node
 
 var session_id: int = 0
-var gold_coins: int = 0  # 灵石（v3.1: 替代旧金币概念）
+var gold_coins: int = 0  # 外部金币（入场费，持久跨局保存）
 var _base_url: String = "http://localhost:8080"
 var _auth_token: String = ""
 

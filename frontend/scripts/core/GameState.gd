@@ -51,7 +51,7 @@ func _restore_from_dict(state: Dictionary):
 	RoundManager.total_score    = state.get("total_score", 0)
 	RoundManager.game_coins     = state.get("game_coins", 0)
 	RoundManager.plays_left     = state.get("plays_left", 4)
-	RoundManager.discards_left  = state.get("discards_left", 4)
+	RoundManager.discards_left  = state.get("discards_left", 5)  # v3.1: 每怪5次
 	RoundManager.revive_count   = state.get("revive_count", 0)
 	RoundManager.play_log       = state.get("play_log", [])
 
