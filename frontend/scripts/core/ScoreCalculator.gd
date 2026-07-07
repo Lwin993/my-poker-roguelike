@@ -1,7 +1,6 @@
 # ScoreCalculator.gd - Autoload 分数计算器
 # v3.1: chips × mult 双维度伤害系统
 # 最终伤害 = (基础伤害 + 伤害加成) × (基础倍率 + 倍率加成) × 特殊乘数
-
 extends Node
 
 # ----------------------------------------------------------------
@@ -171,7 +170,6 @@ func _build_steps(
 			"type":      "joker",
 			"label":     js.resource_data.get("display_name", "?"),
 			"level":     js.level,
-			"chips":     chips,
 			"mult":      mult,
 			"crit_rate": crit_rate,
 			"crit_mult": crit_mult,
