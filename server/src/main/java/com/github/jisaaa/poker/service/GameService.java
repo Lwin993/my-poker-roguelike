@@ -77,10 +77,17 @@ public class GameService {
                 .collect(Collectors.toList());
         HandResult handResult = HandEvaluator.evaluate(cards);
 
+        // v3.1: Verify hand rank + baseChips + cardChips
         if (handResult.getHandRank().getCode() != req.getSnapshot().getHandRank()) {
             auditLogger.logCheat(req, "hand_rank_mismatch",
                     handResult.getHandRank().getCode(), req.getSnapshot().getHandRank());
             throw new BizException(ErrorCode.HAND_RANK_MISMATCH);
+        }
+
+        int serverCardChips = HandEvaluator.sumCardChips(cards);
+        int clientCardChips = req.getSnapshot().getCardChips();
+        if (clientCardChips > 0 && Math.abs(serverCardChips - clientCardChips) > 1) {
+            auditLogger.logCheat(req, "card_chips_mismatch", serverCardChips, clientCardChips);
         }
 
         // 2. Build joker states
@@ -89,9 +96,9 @@ public class GameService {
         // 3. Compute RNG sub-seed
         long rngSeed = computeRngSeed(session.getRngSeed(), req.getRound(), req.getBlind(), req.getPlayIdx());
 
-        // 4. Server-side score recalculation
+        // 4. Server-side score recalculation (v3.1: dual-dimension with played cards)
         ScoreResult serverResult = ScoreCalculator.calculate(
-                handResult, jokers, req.getConsumables(), rngSeed
+                handResult, cards, jokers, req.getConsumables(), rngSeed
         );
 
         // 5. Compare

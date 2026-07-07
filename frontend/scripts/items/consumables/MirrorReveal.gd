@@ -1,8 +1,9 @@
-# CritPotion.gd — 暴击药水：暴击倍率+2.0
+# MirrorReveal.gd — 照妖镜：破除白骨幻术1回合
+# 克制：白骨精（R1大妖）
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {"crit_mult_add": 2.0}
+	return {"boss_suppress": true}
 
 func is_consumed() -> bool:
 	return true

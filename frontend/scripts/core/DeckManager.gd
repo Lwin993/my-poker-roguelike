@@ -28,6 +28,12 @@ class Card:
 		const RANKS = ["", "A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K"]
 		return RANKS[rank]
 
+	# v3.1: 牌面值→chips映射 (A=11, 2-10=点数, J/Q/K=10)
+	func get_chip_value() -> int:
+		if rank == 1:    return 11   # A
+		if rank >= 11:   return 10   # J/Q/K
+		return rank                 # 2-10
+
 const HAND_LIMIT = 8
 const DECK_SIZE = 52
 

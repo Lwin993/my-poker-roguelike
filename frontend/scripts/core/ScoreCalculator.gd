@@ -1,4 +1,7 @@
 # ScoreCalculator.gd - Autoload 分数计算器
+# v3.1: chips × mult 双维度伤害系统
+# 最终伤害 = (基础伤害 + 伤害加成) × (基础倍率 + 倍率加成) × 特殊乘数
+
 extends Node
 
 # ----------------------------------------------------------------
@@ -14,21 +17,22 @@ func calculate(
 	var result_data  = _build_steps(hand_result, joker_states, active_consumables, remaining_hand)
 	var final_params = result_data.get("params", {})
 
-	var base         = float(hand_result.get("base_score", 0))
-	var mult         = final_params.get("mult",         1.0)
-	var crit_rate    = final_params.get("crit_rate",    0.0)
-	var crit_mult    = final_params.get("crit_mult",    2.0)
+	var chips        = float(final_params.get("chips", 0))
+	var mult         = final_params.get("mult", 1.0)
+	var crit_rate    = final_params.get("crit_rate", 0.05)
+	var crit_mult    = final_params.get("crit_mult", 2.0)
 	var special_mult = final_params.get("special_mult", 1.0)
 
 	var is_crit = randf() < clampf(crit_rate, 0.0, 1.0)
 
-	var score = base * mult
+	var score = chips * mult
 	if is_crit: score *= crit_mult
 	score *= special_mult
 
 	return {
 		"score":        int(score),
 		"is_crit":      is_crit,
+		"chips":        chips,
 		"mult":         mult,
 		"crit_rate":    crit_rate,
 		"crit_mult":    crit_mult,
@@ -36,7 +40,9 @@ func calculate(
 		"steps":        result_data.get("steps", []),
 		"snapshot": {
 			"hand_rank":    hand_result.get("rank", 0),
-			"base_score":   hand_result.get("base_score", 0),
+			"base_chips":   hand_result.get("base_chips", 0),
+			"card_chips":   hand_result.get("card_chips", 0),
+			"chips":        int(chips),
 			"mult":         snappedf(mult, 0.0001),
 			"crit_rate":    snappedf(crit_rate, 0.0001),
 			"crit_mult":    snappedf(crit_mult, 0.0001),
@@ -55,10 +61,13 @@ func preview_params(
 	remaining_hand: Array
 ) -> Dictionary:
 	var result = _build_steps(hand_result, joker_states, active_consumables, remaining_hand)
-	return result.get("params", {"mult": 1.0, "crit_rate": 0.0, "crit_mult": 2.0, "special_mult": 1.0})
+	return result.get("params", {"chips": 0, "mult": 1.0, "crit_rate": 0.05, "crit_mult": 2.0, "special_mult": 1.0})
 
 # ----------------------------------------------------------------
 # 逐步构建 — 返回 { params: {...}, steps: [...] }
+# v3.1: chips = baseChips + cardChips + chipAdd
+#       mult  = baseMult + multAdd × multFactor
+#       score = chips × mult × critMult(若暴击) × specialMult
 # ----------------------------------------------------------------
 func _build_steps(
 	hand_result: Dictionary,
@@ -67,49 +76,56 @@ func _build_steps(
 	remaining_hand: Array
 ) -> Dictionary:
 
-	var base_score   = hand_result.get("base_score", 0)
-	var mult         = 1.0
-	var crit_rate    = 0.0
-	var crit_mult    = 2.0
+	var base_chips   = hand_result.get("base_chips", 0)
+	var card_chips   = hand_result.get("card_chips", 0)
+	var base_mult    = float(hand_result.get("base_mult", 1))
+
+	var chips        = float(base_chips + card_chips)
+	var mult         = base_mult
+	var crit_rate    = 0.05   # v3.1: 基础暴击率5%
+	var crit_mult    = 2.0   # v3.1: 基础暴击倍率×2.0
 	var special_mult = 1.0
 	var steps: Array = []
 
-	# Step 0：基础牌型（只有实际有牌型时才加入 step）
-	if base_score > 0:
-		steps.append({
-			"type":       "base",
-			"label":      hand_result.get("hand_name", ""),
-			"base_score": base_score,
-			"mult":       mult,
-			"crit_rate":  crit_rate,
-			"crit_mult":  crit_mult,
-			"partial":    base_score,
-			"delta":      {},
-		})
+	# Step 0：基础牌型（chips = baseChips + cardChips, mult = baseMult）
+	steps.append({
+		"type":       "base",
+		"label":      hand_result.get("hand_name", ""),
+		"chips":      chips,
+		"mult":       mult,
+		"crit_rate":  crit_rate,
+		"crit_mult":  crit_mult,
+		"partial":    int(chips * mult),
+		"delta":      {},
+	})
 
-	# Step 1~M：冲分道具先直接改变本次参数
+	# Step 1~M：消耗品/道具直接修改参数
 	for item in active_consumables:
 		var delta = item.get_score_modifiers()
-		var mf    = delta.get("mult_factor",   1.0)
-		var ma    = delta.get("mult_add",      0.0)
-		var dcr   = delta.get("crit_rate_add", 0.0)
-		var dcm   = delta.get("crit_mult_add", 0.0)
+		var ca    = delta.get("chip_add",       0.0)
+		var ma    = delta.get("mult_add",       0.0)
+		var mf    = delta.get("mult_factor",    1.0)
+		var dcr   = delta.get("crit_rate_add",  0.0)
+		var dcm   = delta.get("crit_mult_add",  0.0)
 
-		mult      *= mf
+		chips     += ca
 		mult      += ma
+		mult      *= mf
 		crit_rate += dcr
 		crit_mult += dcm
 
 		steps.append({
 			"type":      "consumable",
 			"label":     item.resource_data.get("display_name", "?"),
+			"chips":     chips,
 			"mult":      mult,
 			"crit_rate": crit_rate,
 			"crit_mult": crit_mult,
-			"partial":   base_score * mult,
+			"partial":   int(chips * mult),
 			"delta":     {
-				"mult_factor":   mf,
+				"chip_add":      ca,
 				"mult_add":      ma,
+				"mult_factor":   mf,
 				"crit_rate_add": dcr,
 				"crit_mult_add": dcm,
 			},
@@ -127,23 +143,26 @@ func _build_steps(
 				steps.append({
 					"type":      "remain_boost",
 					"label":     "余牌加持(+%d)" % effective,
+					"chips":     chips,
 					"mult":      mult,
 					"crit_rate": crit_rate,
 					"crit_mult": crit_mult,
-					"partial":   base_score * mult,
+					"partial":   int(chips * mult),
 					"delta":     {"mult_add": float(effective)},
 				})
 			break
 
-	# Step M+1~N：每张小丑牌按顺序触发
+	# Step M+1~N：每张法宝按顺序触发
 	for js in joker_states:
 		var delta = js.get_passive_modifiers(hand_result)
-		var dm    = delta.get("mult_add",      0.0)
-		var dcr   = delta.get("crit_rate_add", 0.0)
-		var dcm   = delta.get("crit_mult_add", 0.0)
-		var dsm   = delta.get("special_mult",  1.0)
+		var ca    = delta.get("chip_add",       0.0)
+		var ma    = delta.get("mult_add",       0.0)
+		var dcr   = delta.get("crit_rate_add",  0.0)
+		var dcm   = delta.get("crit_mult_add",  0.0)
+		var dsm   = delta.get("special_mult",   1.0)
 
-		mult         += dm
+		chips        += ca
+		mult         += ma
 		crit_rate    += dcr
 		crit_mult    += dcm
 		special_mult *= dsm
@@ -152,12 +171,14 @@ func _build_steps(
 			"type":      "joker",
 			"label":     js.resource_data.get("display_name", "?"),
 			"level":     js.level,
+			"chips":     chips,
 			"mult":      mult,
 			"crit_rate": crit_rate,
 			"crit_mult": crit_mult,
-			"partial":   base_score * mult,
+			"partial":   int(chips * mult),
 			"delta":     {
-				"mult_add":      dm,
+				"chip_add":      ca,
+				"mult_add":      ma,
 				"crit_rate_add": dcr,
 				"crit_mult_add": dcm,
 				"special_mult":  dsm,
@@ -166,6 +187,7 @@ func _build_steps(
 
 	return {
 		"params": {
+			"chips":        int(chips),
 			"mult":         mult,
 			"crit_rate":    clampf(crit_rate, 0.0, 1.0),
 			"crit_mult":    crit_mult,

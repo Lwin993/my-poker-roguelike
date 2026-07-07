@@ -1,8 +1,9 @@
-# CritPotion.gd — 暴击药水：暴击倍率+2.0
+# HolyDew.gd — 净瓶甘露：熄灭三昧真火1回合
+# 克制：红孩儿（R3大妖）
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {"crit_mult_add": 2.0}
+	return {"boss_suppress": true}
 
 func is_consumed() -> bool:
 	return true

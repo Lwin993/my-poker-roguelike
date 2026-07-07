@@ -29,6 +29,7 @@ GameState="*res://scripts/core/GameState.gd"
 JSBridge="*res://scripts/net/JSBridge.gd"
 GameAPI="*res://scripts/net/GameAPI.gd"
 GameTheme="*res://scripts/core/GameTheme.gd"
+BossSkillManager="*res://scripts/core/BossSkillManager.gd"
 
 [configuration]
 

@@ -15,8 +15,10 @@ signal phase_changed(new_phase: int)
 signal score_updated(round_score: int, total_score: int)
 signal round_failed(round_idx: int, blind_idx: int)
 signal play_result_received(result: Dictionary)
+signal boss_skill_activated(skill_name: String, params: Dictionary)
+signal boss_skill_suppressed()
 
-const BLIND_NAMES = ["小盲", "大盲", "Boss"]
+const BLIND_NAMES = ["小兵", "精英怪", "大妖"]
 
 var current_round: int  = 0
 var current_blind: int  = 0
@@ -30,17 +32,18 @@ var play_log:      Array = []
 var current_phase: int  = Phase.MAIN_MENU
 
 # 门槛表（可被远程配置覆盖）
+# v3.1: HP从旧值调整至新曲线
 var thresholds: Array = [
-	[300, 800, 1500],
-	[1500, 3000, 5000],
-	[3500, 6000, 10000]
+	[300, 600, 1500],      # R1: 小兵/精英怪/大妖(白骨精)
+	[1000, 2500, 6000],    # R2: 小兵/精英怪/大妖(黄风怪)
+	[3500, 8000, 15000]    # R3: 小兵/精英怪/大妖(红孩儿)
 ]
 
-# 游戏积分奖励表
+# v3.1: 灵石奖励表（替代旧金币奖励）
 var coin_rewards: Array = [
-	[30, 50, 80],
-	[50, 80, 120],
-	[80, 120, 180]
+	[50, 80, 130],         # R1灵石
+	[80, 130, 200],        # R2
+	[130, 200, 300]        # R3
 ]
 
 var max_revives: int = 3
@@ -84,7 +87,7 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 		if item:
 			active_items.append(item)
 
-	# 纯函数计算，不修改任何小丑牌/道具状态
+	# 纯函数计算，不修改任何法宝/道具状态
 	var score_result = ScoreCalculator.calculate(
 		hand_result,
 		ItemManager.get_active_joker_states(),
@@ -159,6 +162,8 @@ func _reset_blind():
 	plays_left    = 4
 	discards_left = 4
 	DeckManager.reset()
+	# v3.1: 大妖技能触发
+	BossSkillManager.apply_skill(current_round, current_blind)
 
 func revive():
 	if revive_count >= max_revives: return

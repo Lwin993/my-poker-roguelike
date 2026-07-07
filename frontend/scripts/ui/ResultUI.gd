@@ -46,7 +46,7 @@ func _on_result_received(data: Dictionary):
 	var tier = data.get("reward_tier", {})
 	var tier_name = tier.get("reward_name", "参与奖") if not tier.is_empty() else "参与奖"
 	if gold_earned > 0:
-		reward_name.text = "%s  💰+%d金币" % [tier_name, gold_earned]
+		reward_name.text = "%s  💎+%d灵石" % [tier_name, gold_earned]
 	else:
 		reward_name.text = tier_name
 		if not tier.is_empty():

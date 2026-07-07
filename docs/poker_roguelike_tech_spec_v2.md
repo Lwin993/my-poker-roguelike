@@ -178,11 +178,12 @@ sequenceDiagram
                 },
                 {
                     "round": 2,
-                    "boss_id": "demon_niumowang",
-                    "boss_name": "牛魔王",
-                    "skill_id": "rage",
-                    "skill_name": "蛮牛冲锋",
-                    "skill_desc": "血条恢复30%已损失HP（每回合触发1次）"
+                    "boss_id": "demon_honghaier",
+                    "boss_name": "红孩儿",
+                    "skill_id": "samadhi_fire",
+                    "skill_name": "三昧真火",
+                    "skill_desc": "每回合随机指定2种牌型，只有该牌型可打出伤害，其余牌型伤害归零",
+                    "skill_params": {"valid_hand_count": 2, "valid_hands": [4, 6]}
                 }
             ]
         },
@@ -225,7 +226,7 @@ sequenceDiagram
 > - 当前3个技能设计：
 >   - **白骨幻术（illusion）**：白骨精施展幻术，随机2张手牌变为幻影牌（灰色、不可选中出牌），每回合重新随机
 >   - **风沙走石（sandstorm）**：黄风怪刮起风沙，随机遮挡3张手牌（背面朝上），需消耗1次换牌操作才能翻开
->   - **蛮牛冲锋（rage）**：牛魔王冲锋，血条恢复30%已损失HP，每回合触发1次（即目标伤害增加）
+>   - **三昧真火（samadhi_fire）**：红孩儿释放三昧真火，每回合随机指定2种牌型，只有该牌型可打出伤害，其余牌型伤害归零
 
 #### 2.2.2 POST /api/game/submit_play
 
@@ -740,10 +741,9 @@ public class BossSkillConfig {
 |------|------|--------|--------|------|------|----------|
 | 第1轮 | 白骨精 | `illusion` | 白骨幻术 | 随机将 N 张手牌变为幻影牌（不可选中出牌），每回合重置 | `{"illusion_count": 2}` | 原著白骨精善变幻术，三戏唐三藏 |
 | 第2轮 | 黄风怪 | `sandstorm` | 风沙走石 | 随机遮挡 N 张手牌（背面朝上），需消耗换牌次数翻开 | `{"hidden_count": 3}` | 原著黄风怪刮三昧神风，遮天蔽日 |
-| 第3轮 | 牛魔王 | `rage` | 蛮牛冲锋 | 大妖血条恢复已损失HP的30%，每回合触发1次 | `{"heal_ratio": 0.3}` | 原著牛魔王力大无穷，越战越勇 |
+| 第3轮 | 红孩儿 | `samadhi_fire` | 三昧真火 | 每回合随机指定2种牌型，只有该牌型可打出伤害，其余牌型伤害归零 | `{"valid_hand_count": 2}` | 原著红孩儿吐三昧真火，唯观音净瓶水可克 |
 
 > **扩展预留**：后续可加入更多大妖：
-> - 红孩儿——三昧真火：每回合随机烧毁1张手牌（从游戏中移除）
 > - 蜘蛛精——盘丝洞丝网：限制每回合最多出3张牌（需凑够5张需额外换牌）
 > - 银角大王——紫金葫芦：随机封印1个法宝1回合（效果不生效）
 
@@ -1143,7 +1143,7 @@ INSERT OR IGNORE INTO game_config (config_key, config_value) VALUES
 INSERT OR IGNORE INTO boss_skill_config (round_idx, boss_id, boss_name, skill_id, skill_name, skill_desc, skill_params) VALUES
 (0, 'demon_baigujing', '白骨精', 'illusion', '白骨幻术', '随机将2张手牌变为幻影牌（不可选中出牌），每回合重置', '{"illusion_count": 2}'),
 (1, 'demon_huangfeng', '黄风怪', 'sandstorm', '风沙走石', '随机遮挡3张手牌，需消耗换牌次数翻开', '{"hidden_count": 3}'),
-(2, 'demon_niumowang', '牛魔王', 'rage', '蛮牛冲锋', '血条恢复30%已损失HP，每回合触发1次', '{"heal_ratio": 0.3}');
+(2, 'demon_honghaier', '红孩儿', 'samadhi_fire', '三昧真火', '每回合随机指定2种牌型，只有该牌型可打出伤害，其余牌型伤害归零', '{"valid_hand_count": 2}');
 
 -- 奖品档位（基于伤害）
 INSERT OR IGNORE INTO reward_tier (min_damage, max_damage, reward_name, reward_type, stock_limit) VALUES
@@ -1353,7 +1353,7 @@ sequenceDiagram
     C->>C: 激活 boss_skills[N] 技能效果
     C->>C: 白骨精：幻影牌遮挡2张手牌
     C->>C: 黄风怪：风沙遮挡3张手牌
-    C->>C: 牛魔王：血条恢复30%HP
+    C->>C: 红孩儿：三昧真火指定牌型，只有指定牌型可打出伤害
 
     loop 每次出牌
         C->>C: 在技能限制下选牌出牌
@@ -1757,7 +1757,7 @@ Controller → Service → Mapper / Infrastructure
 |------|------|------|------|----------|
 | 第1轮 | 白骨精 | 白骨幻术 | 随机2张手牌变幻影牌（不可出） | 无直接克制，需策略性换牌 |
 | 第2轮 | 黄风怪 | 风沙走石 | 随机遮挡3张手牌 | 定风丹（免疫技能1回合） |
-| 第3轮 | 牛魔王 | 蛮牛冲锋 | 血条恢复30%已损失HP | 降妖符（大妖关卡倍率×3） |
+| 第3轮 | 红孩儿 | 三昧真火 | 每回合随机指定2种牌型，只有该牌型可打出伤害，其余伤害归零 | 千里眼（多换牌凑指定牌型） |
 
 > **设计说明**：每个大妖技能都有对应的克制仙丹，鼓励玩家在仙铺中寻找策略道具，增加玩法深度。
 
@@ -1769,7 +1769,7 @@ Controller → Service → Mapper / Infrastructure
 > - 主题：小丑牌 Roguelike → 西游扑克 Roguelike（西游记本土化）
 > - 术语：小盲/大盲/Boss → 小兵/精英怪/大妖，小丑牌 → 法宝，冲分道具 → 仙丹
 > - 语义：得分 → 伤害，通过分数 → 怪物血条，暴击 → 神通，复活 → 还魂
-> - 新增：大妖技能系统（白骨幻术、风沙走石、蛮牛冲锋）
+> - 新增：大妖技能系统（白骨幻术、风沙走石、三昧真火）
 > - 新增：定风丹——克制大妖技能的稀有仙丹
 > - 新增：boss_skill_config 表及配置下发
 > - 数据：所有道具重新按西游记设定命名和设计效果

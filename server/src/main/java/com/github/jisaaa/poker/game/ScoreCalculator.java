@@ -1,5 +1,6 @@
 package com.github.jisaaa.poker.game;
 
+import com.github.jisaaa.poker.game.model.Card;
 import com.github.jisaaa.poker.game.model.HandResult;
 import com.github.jisaaa.poker.game.model.ItemModifier;
 import com.github.jisaaa.poker.game.model.ScoreResult;
@@ -9,62 +10,84 @@ import java.util.List;
 import java.util.Random;
 
 /**
- * Score calculator — pure game logic, zero external dependency.
- * Computes final score from hand result + jokers + consumables + RNG.
+ * Score calculator — v3.1 dual-dimension system (chips × mult).
+ *
+ * Formula: 最终伤害 = (基础伤害 + 伤害加成) × (基础倍率 + 倍率加成) × 特殊乘数
+ *   chips = baseChips + cardChipValues + chipAdd(artifacts/consumables)
+ *   mult  = baseMult + multAdd(artifacts/consumables) × multFactor(consumables)
+ *   score = chips × mult × critMult(if crit) × specialMult
+ *
+ * Pure game logic, zero external dependency.
  */
 public class ScoreCalculator {
 
+    /** Base crit rate — v3.1: 5% */
+    private static final double BASE_CRIT_RATE = 0.05;
+    /** Base crit multiplier — v3.1: ×2.0 (was ×1.5) */
+    private static final double BASE_CRIT_MULT = 2.0;
+
     public static ScoreResult calculate(
             HandResult handResult,
+            List<Card> playedCards,
             List<JokerState> jokers,
             List<String> consumables,
             long rngSeed) {
 
         Random rng = new Random(rngSeed);
 
-        // 1. Base score = hand rank base score
-        double mult = 1.0;
-        int baseScore = handResult.getBaseScore();
+        // 1. Base chips = hand rank baseChips + card chip values
+        int baseChips = handResult.getBaseChips();
+        int cardChips = HandEvaluator.sumCardChips(playedCards);
+        int chips = baseChips + cardChips;
 
-        // 2. Joker modifiers
+        // 2. Base mult = hand rank baseMult
+        double mult = (double) handResult.getBaseMult();
+
+        // 3. Crit params
+        double critRate = BASE_CRIT_RATE;
+        double critMult = BASE_CRIT_MULT;
+        double specialMult = 1.0;
+
+        // 4. Artifact (joker) modifiers — dual dimension
         for (JokerState joker : jokers) {
             ItemModifier mod = ItemModifierRegistry.getModifier(joker.getId());
             if (mod != null) {
-                mult = mod.applyMult(mult, joker.getLevel(), rng);
-                baseScore = mod.applyScoreAdd(baseScore, joker.getLevel());
+                chips += mod.applyChipAdd(chips, joker.getLevel(), handResult);
+                mult += mod.applyMultAdd(joker.getLevel());
+                critRate += mod.getCritRateAdd(joker.getLevel());
+                critMult += mod.getCritMultAdd(joker.getLevel());
+                specialMult *= mod.getSpecialMult(joker.getLevel(), rng);
             }
         }
 
-        // 3. Consumable modifiers
+        // 5. Consumable modifiers
         for (String consumableId : consumables) {
             ItemModifier mod = ItemModifierRegistry.getModifier(consumableId);
             if (mod != null) {
-                mult = mod.applyMult(mult, 0, rng);
+                chips += mod.applyChipAdd(chips, 0, handResult);
+                mult += mod.applyMultAdd(0);
+                mult *= mod.applyMultFactor(0);
+                critRate += mod.getCritRateAdd(0);
+                critMult += mod.getCritMultAdd(0);
             }
         }
 
-        // 4. Crit determination (RNG-based)
-        double critRate = 0.05;  // base 5%
-        double critMult = 1.5;   // base 1.5x
-        for (JokerState joker : jokers) {
-            ItemModifier mod = ItemModifierRegistry.getModifier(joker.getId());
-            if (mod != null) {
-                critRate += mod.getCritRateAdd(joker.getLevel());
-                critMult += mod.getCritMultAdd(joker.getLevel());
-            }
-        }
-        boolean isCrit = rng.nextDouble() < critRate;
+        // 6. Crit determination
+        boolean isCrit = rng.nextDouble() < Math.min(critRate, 1.0);
         if (isCrit) {
             mult *= critMult;
         }
 
-        // 5. Final score = baseScore * totalMult, rounded
-        int score = (int) Math.round(baseScore * mult);
+        // 7. Final score = chips × mult × specialMult
+        int score = (int) Math.round(chips * mult * specialMult);
 
         return ScoreResult.builder()
                 .score(score)
-                .isCrit(isCrit)
+                .chips(chips)
                 .mult(mult)
+                .isCrit(isCrit)
+                .critMult(critMult)
+                .specialMult(specialMult)
                 .build();
     }
 

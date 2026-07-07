@@ -1,8 +1,8 @@
-# CritPotion.gd — 暴击药水：暴击倍率+2.0
+# FarSight.gd — 千里眼：换牌+2
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {"crit_mult_add": 2.0}
+	return {"extra_discards": 2}
 
 func is_consumed() -> bool:
 	return true

@@ -31,7 +31,7 @@ public enum ErrorCode {
     REWARD_TIER_NOT_MATCHED(4003, "分数未达任何奖品档位"),
 
     CONFIG_LOAD_FAILED(5001, "远程配置加载失败"),
-    GOLD_INSUFFICIENT(5002, "外部金币不足"),
+    GOLD_INSUFFICIENT(5002, "灵石不足"),
     INTERNAL_ERROR(9999, "未知内部错误");
 
     private final int code;

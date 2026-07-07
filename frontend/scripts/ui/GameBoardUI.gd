@@ -39,7 +39,7 @@ extends Control
 @onready var final_score_label = $MainHBox/TableVBox/PlaySurface/FinalScoreLabel
 @onready var crit_banner       = $MainHBox/TableVBox/PlaySurface/CritBanner
 @onready var calc_close_hint   = $MainHBox/TableVBox/PlaySurface/CalcCloseHint
-# ── 小丑牌详情浮层 ──
+# ── 法宝详情浮层 ──
 @onready var joker_detail_overlay = $JokerDetailOverlay
 @onready var joker_detail_bg      = $JokerDetailOverlay/JokerDetailBG
 @onready var joker_detail_title   = $JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox/JokerDetailTitle
@@ -88,7 +88,7 @@ func _ready():
 	sort_by_rank_btn.pressed.connect(_on_sort_by_rank)
 	sort_by_suit_btn.pressed.connect(_on_sort_by_suit)
 
-	# 小丑牌详情关闭按钮
+	# 法宝详情关闭按钮
 	joker_detail_close.pressed.connect(func(): joker_detail_overlay.visible = false)
 	joker_detail_bg.gui_input.connect(func(ev):
 		if ev is InputEventMouseButton and ev.pressed:
@@ -214,7 +214,7 @@ func _on_score_updated(_rs: int, _ts: int):
 # 参数面板（实时预览）
 # ════════════════════════════════════════════════════════════════
 func _update_params_panel(hand_result: Dictionary = {}):
-	_base_score_preview = hand_result.get("base_score", 0)
+	_base_score_preview = hand_result.get("base_chips", 0) + hand_result.get("card_chips", 0)
 	var params = ScoreCalculator.preview_params(
 		hand_result,
 		[],
@@ -228,7 +228,7 @@ func _update_params_panel(hand_result: Dictionary = {}):
 	)
 
 func _apply_params_to_labels(mult: float, cr: float, cm: float):
-	mult_label.text      = "基础分 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
+	mult_label.text      = "基础伤害 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
 	crit_rate_label.text = "暴击率 %d%%" % int(cr * 100)
 	crit_mult_label.text = "暴击倍数 ×%.1f" % cm
 
@@ -321,7 +321,7 @@ func _update_hand_name_label():
 	if _selected_indices.size() == 5:
 		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
 		var result = HandEvaluator.evaluate(sel_cards)
-		hand_name_label.text = "%s\n基础分 %d" % [result.hand_name, result.base_score]
+		hand_name_label.text = "%s\n伤害 %d  ×%d" % [result.hand_name, result.base_chips + result.card_chips, result.base_mult]
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 		_update_params_panel(result)
 	elif _selected_indices.size() > 0:
@@ -360,13 +360,13 @@ func _make_table_card(card) -> Button:
 	return btn
 
 # ════════════════════════════════════════════════════════════════
-# 小丑牌
+# 法宝
 # ════════════════════════════════════════════════════════════════
 func _rebuild_jokers():
 	for child in joker_slots.get_children(): child.queue_free()
 	_joker_badge_nodes.clear()
 	if ItemManager.jokers.is_empty():
-		var lbl = Label.new(); lbl.text = "暂无小丑牌"
+		var lbl = Label.new(); lbl.text = "暂无法宝"
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.5, 1))
 		joker_slots.add_child(lbl); return
@@ -417,7 +417,7 @@ func _make_joker_badge(joker) -> Control:
 	btn.pressed.connect(func(): _show_joker_detail(j))
 	return btn
 
-# ── 小丑牌详情弹窗 ──────────────────────────────────────────
+# ── 法宝详情弹窗 ──────────────────────────────────────────
 func _show_joker_detail(joker):
 	var color    = GameTheme.COLOR_JOKER
 	var name_str = joker.resource_data.get("display_name", "?")
@@ -602,7 +602,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	calc_close_hint.visible = false
 
 	var steps    = result.get("steps", [])
-	var base_s   = result.get("snapshot", {}).get("base_score", 0)
+	var base_s   = result.get("snapshot", {}).get("chips", 0)
 	var is_crit  = result.get("is_crit", false)
 	var cm       = result.get("crit_mult", 2.0)
 	var final_sc = result.get("score", 0)
@@ -699,7 +699,7 @@ func _fade_score_burst():
 	crit_banner.visible = false
 	crit_banner.modulate.a = 1.0
 
-func _add_calc_step_row(step: Dictionary, base_score: int):
+func _add_calc_step_row(step: Dictionary, base_chips: int):
 	var row = HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
 	calc_steps_list.add_child(row)
@@ -715,18 +715,19 @@ func _add_calc_step_row(step: Dictionary, base_score: int):
 			icon_lbl.text  = "🃏"
 			name_lbl.text  = step.get("label", "牌型")
 			name_lbl.add_theme_color_override("font_color", Color(1.0, 0.92, 0.25, 1))
-			delta_lbl.text = "基础分 %d" % base_score
+			delta_lbl.text = "伤害 %d" % base_chips
 			delta_lbl.add_theme_color_override("font_color", Color(0.65, 0.75, 0.85, 1))
 			result_lbl.text = "×1.00"
 			result_lbl.add_theme_color_override("font_color", GameTheme.COLOR_BLUE_CHIP)
 		"joker":
 			icon_lbl.text = "🎭"
 			var lv = step.get("level", 1)
-			name_lbl.text = "%s (Lv%d)" % [step.get("label", "小丑"), lv]
+			name_lbl.text = "%s (Lv%d)" % [step.get("label", "法宝"), lv]
 			name_lbl.add_theme_color_override("font_color", GameTheme.COLOR_JOKER)
 			var d = step.get("delta", {})
 			var parts = []
 			if d.get("mult_add",0.0) != 0.0:      parts.append("倍率+%.2f" % d.get("mult_add",0.0))
+			if d.get("chip_add",0.0) != 0.0:      parts.append("伤害+%.0f" % d.get("chip_add",0.0))
 			if d.get("crit_rate_add",0.0) != 0.0: parts.append("暴击率+%d%%" % int(d.get("crit_rate_add",0.0)*100))
 			if d.get("crit_mult_add",0.0) != 0.0: parts.append("暴击倍×+%.1f" % d.get("crit_mult_add",0.0))
 			delta_lbl.text = "  ".join(parts) if parts else "无效果"

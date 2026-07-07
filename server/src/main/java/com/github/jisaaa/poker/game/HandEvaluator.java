@@ -10,8 +10,8 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Hand evaluator — pure game logic, zero external dependency.
- * Recognizes 9 poker hand ranks.
+ * Hand evaluator — v3.1 dual-dimension system.
+ * Recognizes 9 poker hand ranks, returns baseChips + baseMult.
  */
 public class HandEvaluator {
 
@@ -37,10 +37,19 @@ public class HandEvaluator {
         else if (countOf(counts, 2) == 1)                             rank = HandRank.ONE_PAIR;
         else                                                          rank = HandRank.HIGH_CARD;
 
+        // v3.1: dual-dimension — baseChips + baseMult
         return HandResult.builder()
                 .handRank(rank)
-                .baseScore(rank.getBaseScore())
+                .baseChips(rank.getBaseChips())
+                .baseMult(rank.getBaseMult())
                 .build();
+    }
+
+    /**
+     * Calculate card chip values sum (A=11, 2-10=face, J/Q/K=10).
+     */
+    public static int sumCardChips(List<Card> cards) {
+        return cards.stream().mapToInt(Card::getChipValue).sum();
     }
 
     private static boolean isFlush(int[] suits) {

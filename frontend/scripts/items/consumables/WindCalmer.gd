@@ -1,8 +1,9 @@
-# CritPotion.gd — 暴击药水：暴击倍率+2.0
+# WindCalmer.gd — 定风丹：免疫遮挡1回合
+# 克制：黄风怪（R2大妖）
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {"crit_mult_add": 2.0}
+	return {"boss_suppress": true}
 
 func is_consumed() -> bool:
 	return true

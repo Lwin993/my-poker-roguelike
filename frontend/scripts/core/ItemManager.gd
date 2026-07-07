@@ -85,7 +85,7 @@ func _create_effect(item_data: Dictionary):
 	if effect_class != "" and "/" not in effect_class:
 		var item_type = item_data.get("item_type", 1)
 		if item_type == 0:
-			effect_class = "jokers/" + effect_class
+			effect_class = "artifacts/" + effect_class  # v3.1: 法宝在artifacts目录
 		else:
 			effect_class = "consumables/" + effect_class
 	var script_path = "res://scripts/items/%s.gd" % effect_class

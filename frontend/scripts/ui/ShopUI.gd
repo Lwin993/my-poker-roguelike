@@ -57,10 +57,10 @@ func _update_header():
 	var r = RoundManager.current_round + 1
 	var b = RoundManager.current_blind
 	var bn = ["小盲","大盲","Boss"][clamp(b-1,0,2)] if b > 0 else "小盲"
-	sub_title.text = "第 %d 轮 · %s 通关！ 获得 💰%d" % [
+	sub_title.text = "第 %d 轮 · %s 通关！ 获得 💎%d" % [
 		r, bn, RoundManager.coin_rewards[RoundManager.current_round][clamp(b-1,0,2)]
 	]
-	coins_label.text = "💰  %d" % RoundManager.game_coins
+	coins_label.text = "💎  %d" % RoundManager.game_coins
 
 # ---- 商品列表 ----
 func _load_shop_items():
@@ -140,13 +140,13 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	buy_btn.custom_minimum_size = Vector2(0, 34)
 	if already_owned:
 		buy_btn.text = "✓ 已拥有"; buy_btn.disabled = true
-		buy_btn.tooltip_text = "已经拥有该小丑牌"
+		buy_btn.tooltip_text = "已经拥有该法宝"
 	elif consumable_full:
 		buy_btn.text = "道具已满"; buy_btn.disabled = true
 		buy_btn.tooltip_text = "最多携带 %d 张道具牌" % ItemManager.get_consumable_limit()
 	else:
-		buy_btn.text = "💰%d 购买" % price; buy_btn.disabled = not can_afford
-		buy_btn.tooltip_text = card.tooltip_text if can_afford else "金币不足"
+		buy_btn.text = "💎%d 购买" % price; buy_btn.disabled = not can_afford
+		buy_btn.tooltip_text = card.tooltip_text if can_afford else "灵石不足"
 
 	var bc = border_color if (can_afford and not already_owned and not consumable_full) else Color(0.4,0.4,0.4,1)
 	var bs = StyleBoxFlat.new()
@@ -251,7 +251,7 @@ func _make_joker_card(joker) -> Control:
 		upg_btn.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 	else:
 		var can_upg = RoundManager.game_coins >= cost
-		upg_btn.text = "升级 💰%d" % cost
+		upg_btn.text = "升级 💎%d" % cost
 		upg_btn.disabled = not can_upg
 		upg_btn.add_theme_font_size_override("font_size", 11)
 		var uc = color if can_upg else Color(0.4, 0.4, 0.4, 1)
@@ -294,13 +294,13 @@ func _on_upgrade_pressed(joker):
 	if cost == -1: return
 	if RoundManager.game_coins >= cost:
 		ItemManager.upgrade_joker(joker)
-		coins_label.text = "💰  %d" % RoundManager.game_coins
+		coins_label.text = "💎  %d" % RoundManager.game_coins
 		_rebuild_owned_panel()
 		GameState.save_state()
 
 func _update_refresh_button():
 	var cost = _get_refresh_cost()
-	refresh_button.text = "🔄  刷新（免费）" if _has_free_refresh else "🔄  刷新（💰%d）" % cost
+	refresh_button.text = "🔄  刷新（免费）" if _has_free_refresh else "🔄  刷新（💎%d）" % cost
 	refresh_button.disabled = (not _has_free_refresh) and RoundManager.game_coins < cost
 
 func _get_refresh_cost() -> int:
@@ -320,7 +320,7 @@ func _on_refresh_pressed():
 	# Async: reload shop from backend with updated refresh_count
 	GameAPI.get_shop_items(_current_shop_node, _refresh_count)
 	_update_refresh_button()
-	coins_label.text = "💰  %d" % RoundManager.game_coins
+	coins_label.text = "💎  %d" % RoundManager.game_coins
 
 # Callback when backend buy completes
 func _on_buy_completed(data: Dictionary):
@@ -328,7 +328,7 @@ func _on_buy_completed(data: Dictionary):
 	var coins = data.get("remaining_coins", -1)
 	if coins >= 0:
 		RoundManager.game_coins = coins
-	coins_label.text = "💰  %d" % RoundManager.game_coins
+	coins_label.text = "💎  %d" % RoundManager.game_coins
 	_rebuild_owned_panel()
 	_load_shop_items()
 	_update_refresh_button()
