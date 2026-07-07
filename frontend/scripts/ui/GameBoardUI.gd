@@ -339,8 +339,10 @@ func _apply_card_style(btn: Button, sc: Color, selected: bool):
 	btn.add_theme_stylebox_override("pressed", normal)
 
 func _on_card_pressed(idx: int):
-	# v3.1: 被锁定的牌不可选中（骷髅将/白骨幻术）
+	# v3.1: 被锁定/翻面的牌不可选中（骷髅将/白骨幻术/小旋风/风沙走石）
 	if not BossSkillManager.is_card_selectable(idx, DeckManager.hand):
+		return
+	if not BossSkillManager.is_card_visible(idx):
 		return
 	if _selected_indices.has(idx): _selected_indices.erase(idx)
 	elif _selected_indices.size() < 5: _selected_indices.append(idx)
