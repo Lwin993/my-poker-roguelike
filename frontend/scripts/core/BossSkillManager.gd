@@ -101,8 +101,9 @@ func is_hand_rank_allowed(hand_rank: int) -> bool:
 	return hand_rank in allowed_hand_ranks
 
 # 检查当前出牌是否被精英怪削弱（火灵童首打-25%）
+# v3.1: 克制道具也压制精英被动
 func is_first_play_nerfed() -> bool:
-	return current_elite_passive == ElitePassive.FIRST_PLAY_NERF and first_play_nerfed
+	return current_elite_passive == ElitePassive.FIRST_PLAY_NERF and first_play_nerfed and not skill_suppressed
 
 # 标记首打已消耗（出牌后调用）
 func consume_first_play_nerf():
@@ -144,8 +145,8 @@ func execute_skill_on_hand(hand: Array):
 			BossSkill.HOLY_FIRE:
 				_select_allowed_hand_ranks()
 
-	# 精英怪被动（锁定/翻面重新随机；首打削弱不在此重置）
-	if current_elite_passive != ElitePassive.NONE:
+	# 精英怪被动（v3.1: 克制道具压制后不再重新标记）
+	if current_elite_passive != ElitePassive.NONE and not skill_suppressed:
 		match current_elite_passive:
 			ElitePassive.LOCK_CARD:
 				_mark_elite_locked_card(hand)
