@@ -204,6 +204,10 @@ func _reset_blind():
 	plays_left    = 4
 	discards_left = 5  # v3.1: 每怪5次换牌
 	DeckManager.reset()
+	# 每回合开始：通知法宝刷新随机属性（如火眼金睛随机花色）
+	for joker in ItemManager.jokers:
+		if joker.has_method("randomize_suit"):
+			joker.randomize_suit()
 	# v3.1: 敌方技能触发（大妖+精英怪）
 	BossSkillManager.apply_skill(current_round, current_blind)
 	BossSkillManager.execute_skill_on_hand(DeckManager.hand)

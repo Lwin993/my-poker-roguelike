@@ -1,45 +1,45 @@
 # GameBoardUI.gd - 主战斗界面交互逻辑
 extends Control
 
-# ── 左侧状态栏 ──
-@onready var round_label       = $MainHBox/Sidebar/RoundBadge/RoundLabel
-@onready var coins_label       = $MainHBox/Sidebar/EconomyPanel/EconomyVBox/CoinsLabel
+# ── 顶部状态栏 ──
+@onready var round_label       = $MainVBox/TopBar/RoundBadge/RoundLabel
+@onready var coins_label       = $MainVBox/TopBar/EconomyPanel/EconomyVBox/CoinsLabel
 # ── 分数 ──
-@onready var score_label       = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ScoreLabel
-@onready var threshold_label   = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ThresholdLabel
-@onready var progress_bar      = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/ProgressBar
-@onready var round_score_detail = $MainHBox/Sidebar/ScoreContainer/ScoreVBox/RoundScoreLabel
+@onready var score_label       = $MainVBox/ScoreContainer/ScoreVBox/ScoreLabel
+@onready var threshold_label   = $MainVBox/ScoreContainer/ScoreVBox/ThresholdLabel
+@onready var progress_bar      = $MainVBox/ScoreContainer/ScoreVBox/ProgressBar
+@onready var round_score_detail = $MainVBox/ScoreContainer/ScoreVBox/RoundScoreLabel
 # ── 信息行 ──
-@onready var hand_name_label   = $MainHBox/TableVBox/HandRow/HandHintLabel
-@onready var boss_skill_label  = $MainHBox/TableVBox/HandRow/BossSkillLabel
-@onready var plays_label       = $MainHBox/Sidebar/ActionCounts/PlaysLabel
-@onready var discards_label    = $MainHBox/Sidebar/ActionCounts/DiscardsLabel
-@onready var total_score_label = $MainHBox/Sidebar/EconomyPanel/EconomyVBox/TotalScoreLabel
+@onready var hand_name_label   = $MainVBox/HandRow/HandHintLabel
+@onready var boss_skill_label  = $MainVBox/BottomTools/BossSkillLabel
+@onready var plays_label       = $MainVBox/TopBar/ActionCounts/PlaysLabel
+@onready var discards_label    = $MainVBox/TopBar/ActionCounts/DiscardsLabel
+@onready var total_score_label = $MainVBox/TopBar/EconomyPanel/EconomyVBox/TotalScoreLabel
 # ── 参数面板 ──
-@onready var mult_label        = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/MultLabel
-@onready var crit_rate_label   = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/CritRateLabel
-@onready var crit_mult_label   = $MainHBox/Sidebar/ParamsPanel/ParamsVBox/CritMultLabel
+@onready var mult_label        = $MainVBox/ParamsPanel/ParamsHBox/MultLabel
+@onready var crit_rate_label   = $MainVBox/ParamsPanel/ParamsHBox/CritRateLabel
+@onready var crit_mult_label   = $MainVBox/ParamsPanel/ParamsHBox/CritMultLabel
 # ── 道具区 ──
-@onready var joker_slots       = $MainHBox/TableVBox/JokerSection/JokerSlots
-@onready var cons_slots        = $MainHBox/TableVBox/JokerSection/ConsSlots
+@onready var joker_slots       = $MainVBox/JokerSection/JokerSlots
+@onready var cons_slots        = $MainVBox/JokerSection/ConsSlots
 # ── 手牌 / 按钮 ──
-@onready var hand_area         = $MainHBox/TableVBox/HandRow/HandArea
-@onready var play_button       = $MainHBox/Sidebar/ButtonRow/PlayButton
-@onready var discard_button    = $MainHBox/Sidebar/ButtonRow/DiscardButton
-@onready var sort_by_rank_btn  = $MainHBox/TableVBox/BottomTools/SortRow/SortByRankButton
-@onready var sort_by_suit_btn  = $MainHBox/TableVBox/BottomTools/SortRow/SortBySuitButton
+@onready var hand_area         = $MainVBox/HandRow/HandArea
+@onready var play_button       = $MainVBox/ButtonRow/PlayButton
+@onready var discard_button    = $MainVBox/ButtonRow/DiscardButton
+@onready var sort_by_rank_btn  = $MainVBox/BottomTools/SortRow/SortByRankButton
+@onready var sort_by_suit_btn  = $MainVBox/BottomTools/SortRow/SortBySuitButton
 # ── 弹出层 ──
 @onready var score_popup       = $ScorePopup
 @onready var revive_dialog     = $ReviveDialog
 # ── 牌桌内联计分区 ──
-@onready var calc_title        = $MainHBox/TableVBox/PlaySurface/CalcTitle
-@onready var formula_label     = $MainHBox/TableVBox/PlaySurface/FormulaLabel
-@onready var played_area       = $MainHBox/TableVBox/PlaySurface/PlayedCenter/PlayedArea
-@onready var score_burst_label = $MainHBox/TableVBox/PlaySurface/ScoreBurstLabel
-@onready var calc_steps_list   = $MainHBox/TableVBox/PlaySurface/CalcStepsList
-@onready var final_score_label = $MainHBox/TableVBox/PlaySurface/FinalScoreLabel
-@onready var crit_banner       = $MainHBox/TableVBox/PlaySurface/CritBanner
-@onready var calc_close_hint   = $MainHBox/TableVBox/PlaySurface/CalcCloseHint
+@onready var calc_title        = $MainVBox/PlaySurface/CalcTitle
+@onready var formula_label     = $MainVBox/PlaySurface/FormulaLabel
+@onready var played_area       = $MainVBox/PlaySurface/PlayedCenter/PlayedArea
+@onready var score_burst_label = $MainVBox/PlaySurface/ScoreBurstLabel
+@onready var calc_steps_list   = $MainVBox/PlaySurface/CalcStepsList
+@onready var final_score_label = $MainVBox/PlaySurface/FinalScoreLabel
+@onready var crit_banner       = $MainVBox/PlaySurface/CritBanner
+@onready var calc_close_hint   = $MainVBox/PlaySurface/CalcCloseHint
 # ── 法宝详情浮层 ──
 @onready var joker_detail_overlay = $JokerDetailOverlay
 @onready var joker_detail_bg      = $JokerDetailOverlay/JokerDetailBG
@@ -528,7 +528,11 @@ func _show_joker_detail(joker):
 
 	joker_detail_title.text = "🎭  %s" % name_str
 	joker_detail_level.text = "等级：Lv%d / 3" % joker.level
-	joker_detail_desc.text  = desc_str
+	# 优先使用动态描述（如火眼金睛会反映当前花色和伤害值）
+	if joker.has_method("get_dynamic_description"):
+		joker_detail_desc.text = joker.get_dynamic_description()
+	else:
+		joker_detail_desc.text = desc_str
 
 	# 清空旧参数
 	for child in joker_detail_params.get_children(): child.queue_free()
@@ -540,14 +544,20 @@ func _show_joker_detail(joker):
 		_add_param_row("提升倍率", "+%.2f" % info.get("current_bonus", 0.0), GameTheme.COLOR_BLUE_CHIP, info.get("current_bonus", 0.0) != 0.0)
 		_add_param_row("每次提升", "+%.2f" % info.get("per_stack", 0.0), GameTheme.COLOR_JOKER, true)
 	else:
-		# v3.1: 优先用 get_preview_modifiers（确定性，不触发随机）
+		# 优先用 get_preview_modifiers（确定性，不触发随机）
 		var delta = joker.get_preview_modifiers({}) if joker.has_method("get_preview_modifiers") else joker.get_passive_modifiers({})
+		var dca   = delta.get("chip_add",      0.0)
 		var dm    = delta.get("mult_add",      0.0)
 		var dcr   = delta.get("crit_rate_add",  0.0)
 		var dcm   = delta.get("crit_mult_add",  0.0)
 		var dsm   = delta.get("special_mult",  1.0)
 		var dprob = delta.get("special_mult_prob", -1.0)
+		var is_per_card = delta.get("_preview_per_card", false)
 
+		# 伤害加成：区分"每张牌 +N"（火眼金睛）和"固定 +N"
+		if dca != 0.0:
+			var chip_str = "每张匹配牌 +%d" % int(dca) if is_per_card else "+%d" % int(dca)
+			_add_param_row("伤害加成", chip_str, Color(0.30, 0.85, 0.50, 1), true)
 		_add_param_row("倍率加成",      "+%.2f" % dm,            GameTheme.COLOR_BLUE_CHIP, dm != 0.0)
 		_add_param_row("暴击率加成",    "+%d%%" % int(dcr*100),  Color(1.0, 0.72, 0.10, 1), dcr != 0.0)
 		_add_param_row("暴击倍数加成",  "+%.1f" % dcm,           Color(1.0, 0.40, 0.10, 1), dcm != 0.0)
@@ -565,6 +575,17 @@ func _show_joker_detail(joker):
 		hint.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		joker_detail_params.add_child(hint)
+
+	# 火眼金睛：显示当前随机花色（只读，每回合自动更换）
+	if joker.has_method("get_suit_name"):
+		var sep2 = HSeparator.new(); joker_detail_params.add_child(sep2)
+		var suit_lbl = Label.new()
+		suit_lbl.text = "🎲 本回合指定花色：%s（每回合随机更换）" % joker.get_suit_name()
+		suit_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		suit_lbl.add_theme_font_size_override("font_size", 13)
+		suit_lbl.add_theme_color_override("font_color", Color(1.0, 0.70, 0.20, 1))
+		suit_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		joker_detail_params.add_child(suit_lbl)
 
 	joker_detail_overlay.visible = true
 
