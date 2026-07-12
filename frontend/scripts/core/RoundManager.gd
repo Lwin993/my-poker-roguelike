@@ -25,11 +25,20 @@ const MONSTER_NAMES = [
 	["火蚁兵", "火灵童", "红孩儿"],  # R3
 ]
 
-const MONSTER_ICONS = [
-	["👻", "💀", "🦴"],
-	["🐾", "🌪", "💨"],
-	["🐜", "🔥", "👶"],
+const MONSTER_TEXTURE_PATHS = [
+	["res://assets/monsters/youhun.png", "res://assets/monsters/kuloujiang.png", "res://assets/monsters/baigujing.png"],
+	["res://assets/monsters/huangmaodiao.png", "res://assets/monsters/xiaoxuanfeng.png", "res://assets/monsters/huangfengguai.png"],
+	["res://assets/monsters/huoyibing.png", "res://assets/monsters/huolingtong.png", "res://assets/monsters/honghaier.png"],
 ]
+
+# 三位大妖在剩余血量不高于 30% 时切换狂暴形态；只改变表现，不额外修改数值。
+const BOSS_ENRAGED_TEXTURE_PATHS = [
+	"res://assets/monsters/baigujing_enraged.png",
+	"res://assets/monsters/huangfengguai_enraged.png",
+	"res://assets/monsters/honghaier_enraged.png",
+]
+
+const BOSS_ENRAGE_REMAINING_RATIO := 0.30
 
 # 精英怪被动效果（blind=1时触发，按v3.1设计文档）
 const ELITE_SKILLS = [
@@ -84,6 +93,25 @@ func get_current_stage_label() -> String:
 func get_current_monster_name() -> String:
 	return MONSTER_NAMES[current_round][current_blind]
 
+func is_current_boss_enraged() -> bool:
+	if current_blind != 2:
+		return false
+	var threshold := float(get_current_threshold())
+	if threshold <= 0.0:
+		return false
+	var remaining_ratio := maxf(0.0, threshold - float(round_score)) / threshold
+	return remaining_ratio <= BOSS_ENRAGE_REMAINING_RATIO
+
+func get_current_monster_texture_path() -> String:
+	if is_current_boss_enraged():
+		return BOSS_ENRAGED_TEXTURE_PATHS[current_round]
+	return MONSTER_TEXTURE_PATHS[current_round][current_blind]
+
+func get_current_boss_phase_label() -> String:
+	if current_blind != 2:
+		return ""
+	return "狂暴形态" if is_current_boss_enraged() else "初始形态"
+
 func get_current_elite_skill() -> String:
 	if current_blind == 1:
 		return ELITE_SKILLS[current_round]
@@ -99,14 +127,14 @@ func get_current_enemy_skill_text() -> String:
 		var name = BossSkillManager.SKILL_NAMES.get(BossSkillManager.current_skill, "")
 		var desc = BossSkillManager.SKILL_DESCRIPTIONS.get(BossSkillManager.current_skill, "")
 		if BossSkillManager.skill_suppressed:
-			return "👹 %s（已克制）" % name
+			return "大妖 · %s（已克制）" % name
 		if BossSkillManager.current_skill == BossSkillManager.BossSkill.HOLY_FIRE:
-			return "👹 %s：仅【%s】可造成伤害" % [name, " / ".join(BossSkillManager.get_allowed_hand_names())]
-		return "👹 %s：%s" % [name, desc]
+			return "大妖 · %s：仅【%s】可造成伤害" % [name, " / ".join(BossSkillManager.get_allowed_hand_names())]
+		return "大妖 · %s：%s" % [name, desc]
 	elif current_blind == 1:
 		var pname = BossSkillManager.ELITE_PASSIVE_NAMES.get(BossSkillManager.current_elite_passive, "")
 		var pdesc = BossSkillManager.ELITE_PASSIVE_DESCRIPTIONS.get(BossSkillManager.current_elite_passive, "")
-		return "⚔️ %s：%s" % [pname, pdesc]
+		return "精英 · %s：%s" % [pname, pdesc]
 	return ""
 
 func start_new_game():

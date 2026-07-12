@@ -1,6 +1,9 @@
 # ResultUI.gd - 结算界面
 extends Control
 
+@onready var backdrop          = $Backdrop
+@onready var trophy_label      = $Center/VBox/TrophyLabel
+
 @onready var total_score_label = $Center/VBox/ScoreContainer/ScoreVBox/TotalScoreLabel
 @onready var global_rank_label = $Center/VBox/ScoreContainer/ScoreVBox/RankRow/GlobalRankLabel
 @onready var friend_rank_label = $Center/VBox/ScoreContainer/ScoreVBox/RankRow/FriendRankLabel
@@ -10,13 +13,18 @@ extends Control
 @onready var menu_button       = $Center/VBox/ButtonRow/MenuButton
 
 func _ready():
-	_style_button(play_again_button, GameTheme.COLOR_ACCENT)
+	_style_button(play_again_button, GameTheme.COLOR_CRIT)
 	_style_button(menu_button, GameTheme.COLOR_BLUE_CHIP)
+	$Center/VBox/ScoreContainer.add_theme_stylebox_override("panel",
+		GameTheme.get_panel_style(Color("3a1721"), GameTheme.COLOR_GOLD, 18))
+	$Center/VBox/RewardContainer.add_theme_stylebox_override("panel",
+		GameTheme.get_panel_style(Color("251747"), GameTheme.COLOR_JOKER, 18))
 
 	play_again_button.pressed.connect(_on_play_again)
 	menu_button.pressed.connect(_on_menu)
 	GameAPI.result_submitted.connect(_on_result_received)
 	_build_tier_list()
+	_start_result_idle()
 
 func _style_button(btn: Button, color: Color):
 	var s = GameTheme.get_button_style(color)
@@ -27,7 +35,9 @@ func _style_button(btn: Button, color: Color):
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 func show_result():
-	total_score_label.text = "最终总分: %d" % RoundManager.total_score
+	_animate_score_to(RoundManager.total_score)
+	backdrop.flash(GameTheme.COLOR_GOLD, 0.18)
+	backdrop.burst(Vector2(size.x * 0.5, size.y * 0.28), GameTheme.COLOR_GOLD, 52)
 	var tier = ConfigLoader.get_reward_tier(RoundManager.total_score)
 	if tier.is_empty():
 		reward_name.text = "无奖品"
@@ -37,7 +47,7 @@ func show_result():
 		_set_reward_color(tier.get("reward_type", "digital"))
 
 func _on_result_received(data: Dictionary):
-	total_score_label.text = "最终总分: %d" % data.get("total_score", 0)
+	_animate_score_to(int(data.get("total_score", 0)))
 	global_rank_label.text = "🌍 全服 #%d" % data.get("global_rank", 0)
 	friend_rank_label.text = "👥 好友 #%d" % data.get("friend_rank", 0)
 	# 始终展示金币兑换信息
@@ -118,3 +128,26 @@ func _on_play_again():
 func _on_menu():
 	GameState.clear_save()
 	RoundManager.go_to_main_menu()
+
+func _animate_score_to(target: int):
+	var tw = create_tween()
+	tw.tween_method(func(value: float): total_score_label.text = "🔥 最终伤害  %s" % _format_number(int(value)), 0.0, float(target), 0.75).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_EXPO)
+	total_score_label.pivot_offset = total_score_label.size * 0.5
+	tw.parallel().tween_property(total_score_label, "scale", Vector2(1.10, 1.10), 0.38)
+	tw.tween_property(total_score_label, "scale", Vector2.ONE, 0.20)
+
+func _format_number(value: int) -> String:
+	var text = str(value)
+	var output = ""
+	while text.length() > 3:
+		output = "," + text.right(3) + output
+		text = text.left(text.length() - 3)
+	return text + output
+
+func _start_result_idle():
+	trophy_label.pivot_offset = trophy_label.size * 0.5
+	var tw = create_tween().set_loops()
+	tw.tween_property(trophy_label, "position:y", trophy_label.position.y - 8.0, 0.9).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(trophy_label, "rotation", -0.05, 0.9)
+	tw.tween_property(trophy_label, "position:y", trophy_label.position.y + 8.0, 0.9).set_ease(Tween.EASE_IN_OUT)
+	tw.parallel().tween_property(trophy_label, "rotation", 0.05, 0.9)

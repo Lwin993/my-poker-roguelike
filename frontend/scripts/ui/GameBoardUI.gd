@@ -1,6 +1,11 @@
 # GameBoardUI.gd - 主战斗界面交互逻辑
 extends Control
 
+@onready var backdrop          = $Backdrop
+@onready var main_vbox         = $MainVBox
+@onready var combo_banner      = $ComboBanner
+@onready var hit_flash         = $HitFlash
+
 # ── 顶部状态栏 ──
 @onready var round_label       = $MainVBox/TopBar/RoundBadge/RoundLabel
 @onready var coins_label       = $MainVBox/TopBar/EconomyPanel/EconomyVBox/CoinsLabel
@@ -34,9 +39,12 @@ extends Control
 # ── 牌桌内联计分区 ──
 @onready var calc_title        = $MainVBox/PlaySurface/CalcTitle
 @onready var monster_avatar    = $MainVBox/PlaySurface/MonsterAvatar
+@onready var monster_glow      = $MainVBox/PlaySurface/MonsterGlow
 @onready var monster_title     = $MainVBox/PlaySurface/MonsterTitle
+@onready var boss_phase_badge  = $MainVBox/PlaySurface/BossPhaseBadge
 @onready var formula_label     = $MainVBox/PlaySurface/FormulaLabel
 @onready var played_area       = $MainVBox/PlaySurface/PlayedCenter/PlayedArea
+@onready var table_hint_label  = $MainVBox/PlaySurface/TableHintLabel
 @onready var score_burst_label = $MainVBox/PlaySurface/ScoreBurstLabel
 @onready var calc_steps_list   = $MainVBox/PlaySurface/CalcStepsList
 @onready var final_score_label = $MainVBox/PlaySurface/FinalScoreLabel
@@ -57,6 +65,9 @@ var _selected_indices:      Array = []
 var _card_nodes:            Array = []
 var _base_score_preview:    int   = 0
 var _joker_badge_nodes:     Array = []
+var _last_monster_texture_path := ""
+var _was_boss_enraged := false
+var _enrage_transition_pending := false
 
 const SUIT_SYMBOLS = ["♠", "♥", "♦", "♣"]
 const SUIT_COLORS  = {
@@ -72,13 +83,24 @@ func _ready():
 	RoundManager.round_failed.connect(_on_round_failed)
 	RoundManager.phase_changed.connect(_on_phase_changed)
 
-	_style_main_button(play_button,    GameTheme.COLOR_ACCENT)
-	_style_main_button(discard_button, GameTheme.COLOR_GOLD)
+	_style_main_button(play_button,    GameTheme.COLOR_CRIT)
+	_style_main_button(discard_button, GameTheme.COLOR_BLUE_CHIP)
 	_style_panel($MainVBox/TopBar/RoundBadge, GameTheme.COLOR_GOLD, 0.12)
 	_style_panel($MainVBox/TopBar/EconomyPanel, GameTheme.COLOR_ACCENT, 0.10)
 	_style_panel($MainVBox/ScoreContainer, GameTheme.COLOR_CRIT, 0.10)
 	_style_panel($MainVBox/ParamsPanel, GameTheme.COLOR_BLUE_CHIP, 0.08)
 	_style_panel($JokerDetailOverlay/JokerDetailPanel, GameTheme.COLOR_JOKER, 0.12)
+	$MainVBox/PlaySurface/PlaySurfaceBG.add_theme_stylebox_override("panel",
+		GameTheme.get_panel_style(Color("0b292c"), Color("d59b43"), 12))
+	var phase_style = StyleBoxFlat.new()
+	phase_style.bg_color = Color(0.22, 0.08, 0.07, 0.90)
+	phase_style.border_color = GameTheme.COLOR_GOLD
+	phase_style.set_border_width_all(2)
+	phase_style.set_corner_radius_all(5)
+	boss_phase_badge.add_theme_stylebox_override("normal", phase_style)
+	for label in [score_label, calc_title, score_burst_label, crit_banner, monster_title]:
+		label.add_theme_color_override("font_outline_color", Color(0.04, 0.02, 0.12, 0.95))
+		label.add_theme_constant_override("outline_size", 6)
 
 	play_button.pressed.connect(_on_play_pressed)
 	discard_button.pressed.connect(_on_discard_pressed)
@@ -107,6 +129,7 @@ func _ready():
 	crit_mult_label.visible = true
 	_reset_inline_calc()
 	_update_ui()
+	_start_idle_juice()
 
 func _style_main_button(btn: Button, color: Color):
 	var s = GameTheme.get_button_style(color)
@@ -119,6 +142,8 @@ func _style_main_button(btn: Button, color: Color):
 	btn.add_theme_stylebox_override("pressed", p)
 	btn.add_theme_color_override("font_color",       GameTheme.COLOR_TEXT_MAIN)
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+	btn.add_theme_color_override("font_pressed_color", Color.WHITE)
+	btn.add_theme_font_size_override("font_size", 18)
 
 func _style_panel(panel: PanelContainer, color: Color, mix: float):
 	panel.add_theme_stylebox_override("panel", GameTheme.get_panel_style(
@@ -196,8 +221,20 @@ func _refresh_all():
 # ════════════════════════════════════════════════════════════════
 func _update_ui():
 	round_label.text  = "%s\n%s" % [RoundManager.get_current_stage_label(), RoundManager.get_current_blind_name()]
-	monster_avatar.text = RoundManager.MONSTER_ICONS[RoundManager.current_round][RoundManager.current_blind]
+	var texture_path = RoundManager.get_current_monster_texture_path()
+	var is_enraged = RoundManager.is_current_boss_enraged()
+	if is_enraged and not _was_boss_enraged and _last_monster_texture_path != "":
+		_enrage_transition_pending = true
+	var monster_texture = load(texture_path)
+	monster_avatar.texture = monster_texture
+	monster_glow.texture = monster_texture
 	monster_title.text = RoundManager.get_current_blind_name()
+	boss_phase_badge.visible = RoundManager.current_blind == 2
+	boss_phase_badge.text = "🔥 狂暴形态" if is_enraged else "◇ 初始形态"
+	boss_phase_badge.add_theme_color_override("font_color", GameTheme.COLOR_CRIT if is_enraged else GameTheme.COLOR_GOLD)
+	monster_glow.modulate = Color(1.0, 0.18, 0.08, 0.24) if is_enraged else Color(0.95, 0.55, 0.20, 0.12)
+	_last_monster_texture_path = texture_path
+	_was_boss_enraged = is_enraged
 	coins_label.text  = "💎 %d" % RoundManager.game_coins
 	total_score_label.text = "总伤 %d" % RoundManager.total_score
 
@@ -207,7 +244,7 @@ func _update_ui():
 		boss_skill_label.text = skill_text
 		if skill_text.find("已克制") != -1:
 			boss_skill_label.add_theme_color_override("font_color", Color(0.3, 1.0, 0.5, 1))
-		elif skill_text.find("👹") != -1:
+		elif skill_text.find("大妖 ·") != -1:
 			boss_skill_label.add_theme_color_override("font_color", Color(1.0, 0.3, 0.3, 1))
 		else:
 			boss_skill_label.add_theme_color_override("font_color", Color(1.0, 0.7, 0.2, 1))
@@ -236,6 +273,10 @@ func _update_ui():
 
 func _on_score_updated(_rs: int, _ts: int):
 	_update_ui()
+	var pulse = create_tween()
+	score_label.pivot_offset = score_label.size * 0.5
+	pulse.tween_property(score_label, "scale", Vector2(1.18, 1.18), 0.08).set_ease(Tween.EASE_OUT)
+	pulse.tween_property(score_label, "scale", Vector2.ONE, 0.13).set_ease(Tween.EASE_IN)
 
 # ════════════════════════════════════════════════════════════════
 # 参数面板（实时预览）
@@ -257,6 +298,7 @@ func _update_params_panel(hand_result: Dictionary = {}):
 		params.get("special_mult", 1.0),
 		params.get("special_mult_prob", -1.0)
 	)
+	return params
 
 func _apply_params_to_labels(mult: float, cr: float, cm: float, sm: float = 1.0, sm_prob: float = -1.0):
 	mult_label.text      = "伤害 %d  ×  倍率 %.2f" % [_base_score_preview, mult]
@@ -310,7 +352,7 @@ func _sort_deck_by_rank():
 func _make_card_button(card, idx: int) -> Button:
 	var sc  = SUIT_COLORS[card.suit]
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(42, 76)
+	btn.custom_minimum_size = Vector2(42, 82)
 
 	# v3.1: 精英怪/大妖技能视觉特效
 	var is_locked = not BossSkillManager.is_card_selectable(idx, DeckManager.hand)
@@ -366,6 +408,12 @@ func _on_card_pressed(idx: int):
 	elif _selected_indices.size() < 5: _selected_indices.append(idx)
 	_update_card_visuals()
 	_update_hand_name_label()
+	if idx >= 0 and idx < _card_nodes.size():
+		var card_btn = _card_nodes[idx]
+		card_btn.pivot_offset = card_btn.size * 0.5
+		var pop = create_tween()
+		pop.tween_property(card_btn, "scale", Vector2(1.10, 1.10), 0.07).set_ease(Tween.EASE_OUT)
+		pop.tween_property(card_btn, "scale", Vector2.ONE, 0.11).set_ease(Tween.EASE_IN)
 
 func _update_card_visuals():
 	for i in range(_card_nodes.size()):
@@ -393,7 +441,7 @@ func _update_card_visuals():
 		var sel = _selected_indices.has(i)
 		_apply_card_style(btn, sc, sel)
 		btn.add_theme_color_override("font_color", GameTheme.COLOR_CARD_INK if sel else sc)
-		btn.position.y = -8 if sel else 0
+		btn.position.y = -12 if sel else 0
 	_update_played_preview()
 
 func _update_hand_name_label():
@@ -420,14 +468,17 @@ func _update_hand_name_label():
 		elif allowed:
 			hand_name_label.text = "%s\n%d%s × %d" % [result.hand_name, result.base_chips + result.card_chips, hidden_hint, result.base_mult]
 			hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
-			play_button.text = "⚔ 出牌"
+			play_button.text = "⚡ 爆发出牌"
 		else:
 			hand_name_label.text = "%s\n🔥 真火阻挡 · 伤害归零" % result.hand_name
 			hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
 			play_button.text = "🔥 出牌（0伤害）"
 		if not has_hidden:
 			_base_score_preview = result.base_chips + result.card_chips
-			_update_params_panel(result)
+			var preview = _update_params_panel(result)
+			if allowed:
+				var estimate = int(preview.get("chips", _base_score_preview) * preview.get("mult", 1.0))
+				play_button.text = "⚡ 爆发出牌  ≈%d" % estimate
 	elif _selected_indices.size() > 0:
 		# v3.1: 实时预览 — 即使不足5张也计算当前选中牌的伤害值
 		# 翻面牌（?）的伤害值不显示，避免暴露牌面
@@ -447,11 +498,11 @@ func _update_hand_name_label():
 		# 预览参数面板用部分牌的chips（翻面牌不含）
 		_base_score_preview = card_chips
 		_apply_params_to_labels(1.0, 0.05, 2.0)
-		play_button.text = "⚔ 出牌"
+		play_button.text = "再选 %d 张" % (5 - _selected_indices.size())
 	else:
 		hand_name_label.text = "选择 5 张牌"
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
-		play_button.text = "⚔ 出牌"
+		play_button.text = "⚡ 选择5张 · 一击爆杀"
 		_update_params_panel()
 
 func _update_played_preview():
@@ -459,10 +510,16 @@ func _update_played_preview():
 		child.queue_free()
 	if _selected_indices.is_empty():
 		monster_avatar.visible = true
+		monster_glow.visible = true
 		monster_title.visible = true
+		boss_phase_badge.visible = RoundManager.current_blind == 2
+		table_hint_label.visible = true
 		return
 	monster_avatar.visible = false
+	monster_glow.visible = false
 	monster_title.visible = false
+	boss_phase_badge.visible = false
+	table_hint_label.visible = false
 	for idx in _selected_indices:
 		if idx >= 0 and idx < DeckManager.hand.size():
 			played_area.add_child(_make_table_card(DeckManager.hand[idx], idx))
@@ -518,39 +575,46 @@ func _make_joker_badge(joker) -> Control:
 	var color = GameTheme.COLOR_JOKER
 
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(58, 56)
+	btn.custom_minimum_size = Vector2(72, 78)
+	btn.clip_contents = true
 	btn.tooltip_text = joker.resource_data.get("description", "")
 
 	var s = StyleBoxFlat.new()
 	s.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.20); s.border_color = color
-	s.set_border_width_all(2); s.set_corner_radius_all(6)
+	s.set_border_width_all(2); s.set_corner_radius_all(7)
+	s.shadow_color = Color(color.r, color.g, color.b, 0.30); s.shadow_size = 5
 	s.content_margin_left = 4; s.content_margin_right = 4
 	s.content_margin_top = 4; s.content_margin_bottom = 4
 	var h = s.duplicate(); h.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.36); h.border_color = color.lightened(0.16)
 	btn.add_theme_stylebox_override("normal", s)
 	btn.add_theme_stylebox_override("hover",  h)
 
-	# 内部用 RichTextLabel 排版
-	var vb = VBoxContainer.new(); vb.add_theme_constant_override("separation", 1)
+	# 法宝直接展示原著意象卡面，不再用 emoji 代替主体。
+	var vb = VBoxContainer.new(); vb.add_theme_constant_override("separation", 0)
+	vb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	btn.add_child(vb)
 
-	var row = HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER
-	row.add_theme_constant_override("separation", 2); vb.add_child(row)
+	var art = TextureRect.new()
+	art.custom_minimum_size = Vector2(58, 50)
+	art.texture = ItemManager.get_artifact_texture(joker)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	art.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	vb.add_child(art)
 
-	var icon = Label.new(); icon.text = ItemManager.get_item_icon(joker); icon.add_theme_font_size_override("font_size", 15)
-	row.add_child(icon)
+	var row = HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER
+	row.add_theme_constant_override("separation", 3); row.mouse_filter = Control.MOUSE_FILTER_IGNORE; vb.add_child(row)
 	var lv = Label.new(); lv.text = "Lv%d" % joker.level
 	lv.add_theme_font_size_override("font_size", 10)
 	lv.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
 	row.add_child(lv)
-
 	var nm = Label.new()
 	nm.text = joker.resource_data.get("display_name", "?")
 	nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	nm.add_theme_font_size_override("font_size", 10)
+	nm.add_theme_font_size_override("font_size", 9)
 	nm.add_theme_color_override("font_color", color)
-	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	vb.add_child(nm)
+	nm.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	row.add_child(nm)
 
 	var j = joker
 	btn.pressed.connect(func(): _show_joker_detail(j))
@@ -562,7 +626,7 @@ func _show_joker_detail(joker):
 	var name_str = joker.resource_data.get("display_name", "?")
 	var desc_str = joker.resource_data.get("description", "")
 
-	joker_detail_title.text = "%s  %s" % [ItemManager.get_item_icon(joker), name_str]
+	joker_detail_title.text = "法宝 · %s" % name_str
 	joker_detail_level.text = "等级：Lv%d / 3" % joker.level
 	# 优先使用动态描述（如火眼金睛会反映当前花色和伤害值）
 	if joker.has_method("get_dynamic_description"):
@@ -863,7 +927,10 @@ func _on_discard_pressed():
 func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	# ── 牌桌中间展示逐步计算过程 ──
 	monster_avatar.visible = false
+	monster_glow.visible = false
 	monster_title.visible = false
+	boss_phase_badge.visible = false
+	table_hint_label.visible = false
 	for child in calc_steps_list.get_children(): child.queue_free()
 	for child in played_area.get_children(): child.queue_free()
 	for card in played_cards:
@@ -895,13 +962,13 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	formula_label.text = "%d(手牌) × %.0f(牌型) = %d" % [base_chips, base_mult, running_score]
 	_apply_params_to_labels(base_mult, 0.05, 2.0)
 	_add_calc_step_row(base_step, base_chips)
-	await get_tree().create_timer(0.6).timeout
+	await get_tree().create_timer(0.28).timeout
 
 	# ── Phase 2: 逐步展示各效果 ──
 	for i in range(1, steps.size()):
 		var step = steps[i]
 		var step_type = step.get("type", "")
-		await get_tree().create_timer(0.45).timeout
+		await get_tree().create_timer(0.22).timeout
 
 		if step_type == "elite_nerf":
 			running_score = int(running_score * 0.75)
@@ -954,7 +1021,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0), dsm)
 
 	# ── Phase 3: 最终得分 ──
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.22).timeout
 	if result.get("blocked_by_boss", false):
 		crit_banner.text = "🔥 三昧真火吞噬伤害"
 		crit_banner.visible = true
@@ -968,7 +1035,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		score_burst_label.modulate.a = 1.0
 		score_burst_label.add_theme_font_size_override("font_size", 22)
 		formula_label.text = "基础得分: %d" % running_score
-		await get_tree().create_timer(0.8).timeout
+		await get_tree().create_timer(0.32).timeout
 
 		# ── Phase 4: 暴击大特效！ ──
 		crit_banner.text = "💥 暴击！  ×%.1f" % cm
@@ -978,7 +1045,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		var tw = create_tween()
 		tw.tween_property(crit_banner, "scale", Vector2(2.0, 2.0), 0.2).set_ease(Tween.EASE_OUT)
 		tw.tween_property(crit_banner, "scale", Vector2(1.0, 1.0), 0.15).set_ease(Tween.EASE_IN)
-		await get_tree().create_timer(0.6).timeout
+		await get_tree().create_timer(0.28).timeout
 
 		# 分数更新为暴击后值（红色大字）
 		var crit_score = int(running_score * cm)
@@ -999,8 +1066,123 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 		score_burst_label.scale = Vector2.ONE
 		score_burst_label.add_theme_font_size_override("font_size", 32)
 
-	await get_tree().create_timer(1.2).timeout
+	await _impact_feedback(final_sc, is_crit, result.get("blocked_by_boss", false))
+	await get_tree().create_timer(0.62).timeout
 	await _fade_score_burst()
+
+func _impact_feedback(final_score: int, is_crit: bool, blocked: bool):
+	var color = GameTheme.COLOR_CRIT if is_crit else GameTheme.COLOR_GOLD
+	if blocked: color = GameTheme.COLOR_RED
+	backdrop.flash(color, 0.30 if is_crit else 0.18)
+	backdrop.burst(Vector2(size.x * 0.5, size.y * 0.43), color, 44 if is_crit else 28)
+	monster_avatar.visible = true
+	monster_glow.visible = true
+	boss_phase_badge.visible = RoundManager.current_blind == 2
+	monster_avatar.pivot_offset = monster_avatar.size * 0.5
+	monster_glow.pivot_offset = monster_glow.size * 0.5
+	var hit = create_tween()
+	hit.tween_property(monster_avatar, "scale", Vector2(1.16, 0.82), 0.07).set_ease(Tween.EASE_OUT)
+	hit.parallel().tween_property(monster_glow, "scale", Vector2(1.28, 0.90), 0.07)
+	hit.tween_property(monster_avatar, "scale", Vector2(0.88, 1.12), 0.08)
+	hit.parallel().tween_property(monster_glow, "scale", Vector2(0.96, 1.18), 0.08)
+	hit.tween_property(monster_avatar, "scale", Vector2.ONE, 0.11).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	hit.parallel().tween_property(monster_glow, "scale", Vector2(1.08, 1.08), 0.11)
+
+	# 全界面快速震动：分数越高，位移越大。
+	var power = clampf(3.0 + log(maxf(float(final_score), 1.0)) * 0.8, 4.0, 11.0)
+	if blocked: power = 3.0
+	var origin = main_vbox.position
+	var shake = create_tween()
+	for i in range(7):
+		shake.tween_property(main_vbox, "position", origin + Vector2(randf_range(-power, power), randf_range(-power, power)), 0.025)
+	shake.tween_property(main_vbox, "position", origin, 0.04)
+
+	hit_flash.color = Color(color.r, color.g, color.b, 0.34 if is_crit else 0.20)
+	var flash_tw = create_tween()
+	flash_tw.tween_property(hit_flash, "color:a", 0.0, 0.24)
+
+	if not blocked:
+		var combo = _get_current_combo()
+		var rating = "漂亮一击！"
+		if final_score >= 5000: rating = "天崩地裂！"
+		elif final_score >= 2000: rating = "数值炸裂！"
+		elif final_score >= 800: rating = "一击入魂！"
+		elif final_score >= 300: rating = "爆了！"
+		combo_banner.text = "%s  连击 ×%d" % [rating, combo]
+		combo_banner.visible = true
+		combo_banner.pivot_offset = combo_banner.size * 0.5
+		combo_banner.scale = Vector2(0.25, 0.25)
+		combo_banner.modulate.a = 1.0
+		var combo_tw = create_tween()
+		combo_tw.tween_property(combo_banner, "scale", Vector2(1.22, 1.22), 0.14).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+		combo_tw.tween_property(combo_banner, "scale", Vector2.ONE, 0.10)
+		combo_tw.tween_interval(0.28)
+		combo_tw.tween_property(combo_banner, "modulate:a", 0.0, 0.18)
+		combo_tw.tween_callback(func(): combo_banner.visible = false)
+	if _enrage_transition_pending:
+		_enrage_transition_pending = false
+		await get_tree().create_timer(0.14).timeout
+		await _play_boss_enrage_transition()
+	else:
+		await get_tree().create_timer(0.18).timeout
+
+func _play_boss_enrage_transition():
+	monster_avatar.visible = true
+	monster_glow.visible = true
+	monster_title.visible = true
+	boss_phase_badge.visible = true
+	boss_phase_badge.text = "🔥 狂暴形态"
+	boss_phase_badge.add_theme_color_override("font_color", Color("fff0a3"))
+	backdrop.flash(GameTheme.COLOR_CRIT, 0.44)
+	backdrop.burst(Vector2(size.x * 0.22, size.y * 0.44), GameTheme.COLOR_CRIT, 52)
+	monster_avatar.pivot_offset = monster_avatar.size * 0.5
+	monster_glow.pivot_offset = monster_glow.size * 0.5
+	monster_avatar.scale = Vector2(0.58, 0.58)
+	monster_glow.scale = Vector2(0.72, 0.72)
+	combo_banner.text = "大妖狂暴！\n剩余血量 30%"
+	combo_banner.visible = true
+	combo_banner.modulate.a = 1.0
+	combo_banner.scale = Vector2(0.35, 0.35)
+	combo_banner.pivot_offset = combo_banner.size * 0.5
+	var tw = create_tween()
+	tw.tween_property(monster_avatar, "scale", Vector2(1.28, 1.28), 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.parallel().tween_property(monster_glow, "scale", Vector2(1.42, 1.42), 0.22)
+	tw.parallel().tween_property(combo_banner, "scale", Vector2(1.18, 1.18), 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(monster_avatar, "scale", Vector2.ONE, 0.14)
+	tw.parallel().tween_property(monster_glow, "scale", Vector2(1.08, 1.08), 0.14)
+	tw.tween_interval(0.38)
+	tw.tween_property(combo_banner, "modulate:a", 0.0, 0.18)
+	await tw.finished
+	combo_banner.visible = false
+	combo_banner.modulate.a = 1.0
+
+func _get_current_combo() -> int:
+	var combo := 0
+	for i in range(RoundManager.play_log.size() - 1, -1, -1):
+		var entry = RoundManager.play_log[i]
+		if entry.get("round", -1) != RoundManager.current_round or entry.get("blind", -1) != RoundManager.current_blind:
+			break
+		combo += 1
+	return maxi(1, combo)
+
+func _start_idle_juice():
+	monster_avatar.pivot_offset = monster_avatar.size * 0.5
+	monster_glow.pivot_offset = monster_glow.size * 0.5
+	monster_glow.scale = Vector2(1.08, 1.08)
+	var float_tw = create_tween().set_loops()
+	float_tw.tween_property(monster_avatar, "position:y", monster_avatar.position.y - 7.0, 1.05).set_ease(Tween.EASE_IN_OUT)
+	float_tw.parallel().tween_property(monster_avatar, "rotation", -0.035, 1.05)
+	float_tw.tween_property(monster_avatar, "position:y", monster_avatar.position.y + 7.0, 1.05).set_ease(Tween.EASE_IN_OUT)
+	float_tw.parallel().tween_property(monster_avatar, "rotation", 0.035, 1.05)
+	var aura_tw = create_tween().set_loops()
+	aura_tw.tween_property(monster_glow, "modulate:a", 0.28, 0.70).set_ease(Tween.EASE_IN_OUT)
+	aura_tw.parallel().tween_property(monster_glow, "scale", Vector2(1.14, 1.14), 0.70)
+	aura_tw.tween_property(monster_glow, "modulate:a", 0.10, 0.70).set_ease(Tween.EASE_IN_OUT)
+	aura_tw.parallel().tween_property(monster_glow, "scale", Vector2(1.06, 1.06), 0.70)
+	play_button.pivot_offset = play_button.size * 0.5
+	var glow_tw = create_tween().set_loops()
+	glow_tw.tween_property(play_button, "modulate", Color(1.16, 1.08, 1.02, 1), 0.65).set_ease(Tween.EASE_IN_OUT)
+	glow_tw.tween_property(play_button, "modulate", Color.WHITE, 0.65).set_ease(Tween.EASE_IN_OUT)
 
 
 func _make_step_label(icon: String, name: String, delta: String, result: String, color: Color) -> HBoxContainer:
@@ -1051,7 +1233,10 @@ func _reset_inline_calc():
 	crit_banner.modulate.a = 1.0
 	calc_close_hint.visible = false
 	monster_avatar.visible = true
+	monster_glow.visible = true
 	monster_title.visible = true
+	boss_phase_badge.visible = RoundManager.current_blind == 2
+	table_hint_label.visible = true
 
 func _fade_score_burst():
 	if score_burst_label.text == "":

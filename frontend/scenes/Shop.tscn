@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3 uid="uid://shop_scene"]
+[gd_scene load_steps=3 format=3 uid="uid://shop_scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/ShopUI.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/ui/JuiceBackdrop.gd" id="2"]
 
 [node name="Shop" type="Control"]
 layout_mode = 3
@@ -9,12 +10,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="Backdrop" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-color = Color(0.18, 0.035, 0.055, 1)
+mouse_filter = 2
+script = ExtResource("2")
+variant = "shop"
 
 [node name="VBox" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -34,9 +37,11 @@ custom_minimum_size = Vector2(0, 46)
 [node name="ShopTitle" type="Label" parent="VBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "☁  云端仙铺"
-theme_override_font_sizes/font_size = 24
+text = "✨  天命仙铺"
+theme_override_font_sizes/font_size = 28
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.12, 0.32, 1)
+theme_override_constants/outline_size = 7
 
 [node name="CoinsBadge" type="PanelContainer" parent="VBox/HeaderRow"]
 layout_mode = 2
@@ -53,12 +58,24 @@ text = "第1轮 · 小盲 通关！"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.0, 0.86, 0.72, 1)
 
+[node name="LuckyBanner" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 38)
+
+[node name="LuckyText" type="Label" parent="VBox/LuckyBanner"]
+layout_mode = 2
+text = "🔥 仙缘爆棚：选法宝、叠倍率，下一战直接秒妖！"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(1, 0.9, 0.35, 1)
+
 [node name="Divider" type="HSeparator" parent="VBox"]
 layout_mode = 2
 
 [node name="ShopLabel" type="Label" parent="VBox"]
 layout_mode = 2
-text = "本期商品"
+text = "🎴 本期天命宝物"
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
@@ -103,12 +120,29 @@ theme_override_constants/separation = 12
 
 [node name="RefreshButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(154, 44)
+custom_minimum_size = Vector2(136, 48)
 text = "🔄  刷新"
 theme_override_font_sizes/font_size = 16
 
 [node name="ContinueButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(174, 44)
-text = "继续游戏  ▶"
+custom_minimum_size = Vector2(250, 48)
+size_flags_horizontal = 3
+text = "⚡ 带上神装继续爆杀  ▶"
 theme_override_font_sizes/font_size = 16
+
+[node name="PurchaseToast" type="Label" parent="."]
+layout_mode = 1
+anchor_left = 0.1
+anchor_top = 0.42
+anchor_right = 0.9
+anchor_bottom = 0.53
+text = "✨ 天命宝物入手！"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 27
+theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.08, 0.28, 1)
+theme_override_constants/outline_size = 9
+visible = false
+mouse_filter = 2

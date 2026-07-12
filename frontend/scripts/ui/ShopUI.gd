@@ -1,6 +1,9 @@
 # ShopUI.gd - 商店界面交互
 extends Control
 
+@onready var backdrop        = $Backdrop
+@onready var purchase_toast  = $PurchaseToast
+
 @onready var coins_label     = $VBox/HeaderRow/CoinsBadge/CoinsLabel
 @onready var sub_title       = $VBox/SubTitle
 @onready var shop_grid       = $VBox/ShopScroll/ShopGrid
@@ -16,8 +19,12 @@ var _current_shop_items: Array = []  # v3.1: cached for re-render after buy
 var _sold_item_ids: Array = []      # v3.1: 已售罄的商品ID
 
 func _ready():
-	_style_button(continue_button, GameTheme.COLOR_ACCENT)
-	_style_button(refresh_button,  GameTheme.COLOR_BLUE_CHIP)
+	_style_button(continue_button, GameTheme.COLOR_GOLD)
+	_style_button(refresh_button,  GameTheme.COLOR_JOKER)
+	$VBox/HeaderRow/CoinsBadge.add_theme_stylebox_override("panel",
+		GameTheme.get_panel_style(Color("10274b"), GameTheme.COLOR_GOLD, 14))
+	$VBox/LuckyBanner.add_theme_stylebox_override("panel",
+		GameTheme.get_panel_style(Color("322245"), GameTheme.COLOR_HOT_PINK, 12))
 	refresh_button.pressed.connect(_on_refresh_pressed)
 	continue_button.pressed.connect(_on_continue_pressed)
 	# Connect async signals from GameAPI
@@ -55,7 +62,7 @@ func _update_header():
 	var monster = RoundManager.MONSTER_NAMES[r][b]
 	sub_title.text = "第%d轮 · %s 已降伏  +%d 灵石" % [r + 1, monster, RoundManager.last_cleared_reward]
 	coins_label.text = "💎  %d" % RoundManager.game_coins
-	continue_button.text = "领取战果  ▶" if RoundManager._pending_final_result else "继续降妖  ▶"
+	continue_button.text = "⚡ 爽感结算  ▶" if RoundManager._pending_final_result else "⚡ 带上神装继续爆杀  ▶"
 
 # ---- 商品列表 ----
 func _load_shop_items():
@@ -70,7 +77,16 @@ func _on_shop_items_loaded(items: Array):
 	_current_shop_items = items  # v3.1: 缓存商品数据
 	for c in shop_grid.get_children(): c.queue_free()
 	for item in items:
-		shop_grid.add_child(_make_shop_card(item))
+		var card = _make_shop_card(item)
+		shop_grid.add_child(card)
+		card.modulate.a = 0.0
+		card.scale = Vector2(0.86, 0.86)
+		card.pivot_offset = card.custom_minimum_size * 0.5
+		var delay = float(shop_grid.get_child_count() - 1) * 0.045
+		var reveal = create_tween()
+		reveal.tween_interval(delay)
+		reveal.tween_property(card, "modulate:a", 1.0, 0.16)
+		reveal.parallel().tween_property(card, "scale", Vector2.ONE, 0.22).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
 
 func _make_shop_card(item_data: Dictionary) -> Control:
 	var rarity    = item_data.get("rarity", 0)
@@ -86,12 +102,12 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	else:                border_color = GameTheme.COLOR_ACCENT
 
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(148, 188)
+	card.custom_minimum_size = Vector2(148, 202)
 	card.tooltip_text = "%s\n%s" % [name_str, desc_str]
 	var cs = StyleBoxFlat.new()
-	cs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(border_color, 0.16); cs.border_color = border_color
-	cs.set_border_width_all(2); cs.set_corner_radius_all(6)
-	cs.shadow_color = Color(0.03, 0.01, 0.02, 0.42); cs.shadow_size = 4
+	cs.bg_color = Color("12183b").lerp(border_color, 0.24); cs.border_color = border_color.lightened(0.12)
+	cs.set_border_width_all(3); cs.set_corner_radius_all(14)
+	cs.shadow_color = Color(border_color.r, border_color.g, border_color.b, 0.42); cs.shadow_size = 11
 	cs.content_margin_left = 8; cs.content_margin_right = 8
 	cs.content_margin_top  = 8; cs.content_margin_bottom = 8
 	card.add_theme_stylebox_override("panel", cs)
@@ -100,17 +116,28 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	vbox.add_theme_constant_override("separation", 4)
 	card.add_child(vbox)
 
-	var icon_lbl = Label.new()
-	icon_lbl.text = ItemManager.get_item_icon(item_data)
-	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	icon_lbl.add_theme_font_size_override("font_size", 24)
-	icon_lbl.tooltip_text = card.tooltip_text
-	vbox.add_child(icon_lbl)
+	if item_type == 0:
+		var art = TextureRect.new()
+		art.custom_minimum_size = Vector2(0, 70)
+		art.texture = ItemManager.get_artifact_texture(item_data)
+		art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		art.tooltip_text = card.tooltip_text
+		vbox.add_child(art)
+	else:
+		var icon_lbl = Label.new()
+		icon_lbl.text = ItemManager.get_item_icon(item_data)
+		icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		icon_lbl.add_theme_font_size_override("font_size", 34)
+		icon_lbl.tooltip_text = card.tooltip_text
+		vbox.add_child(icon_lbl)
 
 	var name_lbl = Label.new()
 	name_lbl.text = name_str
 	name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_lbl.add_theme_font_size_override("font_size", 15)
+	name_lbl.add_theme_constant_override("outline_size", 4)
+	name_lbl.add_theme_color_override("font_outline_color", Color(0.03,0.02,0.10,0.9))
 	name_lbl.add_theme_color_override("font_color", border_color)
 	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_lbl.tooltip_text = card.tooltip_text
@@ -121,6 +148,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	if item_type != 0:
 		var preview_effect = ItemManager.create_item_effect(item_data)
 		type_lbl.text += " · %s" % preview_effect.get_use_timing_label()
+	if rarity == 1: type_lbl.text = "★ 稀有爆款 · " + type_lbl.text
 	type_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	type_lbl.add_theme_font_size_override("font_size", 10)
 	type_lbl.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
@@ -158,7 +186,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	var bc = border_color if (can_afford and not already_owned and not consumable_full and not is_sold) else Color(0.4,0.4,0.4,1)
 	var bs = StyleBoxFlat.new()
 	bs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(bc, 0.24); bs.border_color = bc
-	bs.set_border_width_all(2); bs.set_corner_radius_all(5)
+	bs.set_border_width_all(3); bs.set_corner_radius_all(10)
 	var bh = bs.duplicate(); bh.bg_color = GameTheme.COLOR_BG_PANEL.lerp(bc, 0.40)
 	buy_btn.add_theme_stylebox_override("normal", bs)
 	buy_btn.add_theme_stylebox_override("hover",  bh)
@@ -178,6 +206,7 @@ func _on_buy_pressed(item_id: String, item_data: Dictionary):
 		return
 	# 标记为售罄
 	_sold_item_ids.append(item_id)
+	_show_purchase_burst(item_data)
 	# Then confirm with backend
 	GameAPI.buy_item(item_id, _current_shop_node)
 	# v3.1: 购买后刷新UI（更新已拥有状态 + 灵石余额）
@@ -220,7 +249,7 @@ func _make_joker_card(joker) -> Control:
 	var max_level = (cost == -1)
 
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(96, 86)
+	card.custom_minimum_size = Vector2(100, 118)
 	var cs = StyleBoxFlat.new()
 	cs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.18); cs.border_color = color
 	cs.set_border_width_all(2); cs.set_corner_radius_all(6)
@@ -233,15 +262,18 @@ func _make_joker_card(joker) -> Control:
 	vb.add_theme_constant_override("separation", 3)
 	card.add_child(vb)
 
-	# 图标 + 等级
+	var art = TextureRect.new()
+	art.custom_minimum_size = Vector2(76, 58)
+	art.texture = ItemManager.get_artifact_texture(joker)
+	art.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	art.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	vb.add_child(art)
+
+	# 法宝名称 + 等级
 	var row = HBoxContainer.new()
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 3)
 	vb.add_child(row)
-
-	var icon = Label.new()
-	icon.text = ItemManager.get_item_icon(joker); icon.add_theme_font_size_override("font_size", 18)
-	row.add_child(icon)
 
 	var lv_lbl = Label.new()
 	lv_lbl.text = "Lv%d" % joker.level
@@ -312,6 +344,7 @@ func _on_upgrade_pressed(joker):
 		ItemManager.upgrade_joker(joker)
 		coins_label.text = "💎  %d" % RoundManager.game_coins
 		_rebuild_owned_panel()
+		_show_purchase_burst(joker.resource_data, "法宝升级！Lv%d" % joker.level)
 		GameState.save_state()
 
 func _update_refresh_button():
@@ -363,3 +396,19 @@ func _on_continue_pressed():
 		RoundManager._set_phase(RoundManager.Phase.ROUND_START)
 	else:
 		RoundManager._set_phase(RoundManager.Phase.PLAYING)
+
+func _show_purchase_burst(item_data: Dictionary, custom_text: String = ""):
+	var name = item_data.get("display_name", "天命宝物")
+	purchase_toast.text = custom_text if custom_text != "" else "✨【%s】入手！战力暴涨！" % name
+	purchase_toast.visible = true
+	purchase_toast.modulate.a = 1.0
+	purchase_toast.pivot_offset = purchase_toast.size * 0.5
+	purchase_toast.scale = Vector2(0.25, 0.25)
+	backdrop.flash(GameTheme.COLOR_GOLD, 0.20)
+	backdrop.burst(Vector2(size.x * 0.5, size.y * 0.48), GameTheme.COLOR_GOLD, 38)
+	var tw = create_tween()
+	tw.tween_property(purchase_toast, "scale", Vector2(1.18, 1.18), 0.16).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_BACK)
+	tw.tween_property(purchase_toast, "scale", Vector2.ONE, 0.10)
+	tw.tween_interval(0.55)
+	tw.tween_property(purchase_toast, "modulate:a", 0.0, 0.20)
+	tw.tween_callback(func(): purchase_toast.visible = false)

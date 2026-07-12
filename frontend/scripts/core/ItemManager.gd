@@ -9,6 +9,13 @@ var _registered_items: Dictionary = {}  # id -> item_data
 const CONSUMABLE_LIMIT := -1  # v3.1: 道具不限制携带与同次使用数量
 const ARTIFACT_IDS := ["artifact_jgb", "artifact_zjl", "artifact_rsg", "artifact_hyjj"]
 
+const ARTIFACT_TEXTURE_PATHS := {
+	"artifact_jgb": "res://assets/artifacts/jingubang.png",
+	"artifact_zjl": "res://assets/artifacts/zijinling.png",
+	"artifact_rsg": "res://assets/artifacts/renshenguo.png",
+	"artifact_hyjj": "res://assets/artifacts/huoyanjinjing.png",
+}
+
 const ITEM_ICONS := {
 	"artifact_jgb": "🏏", "artifact_zjl": "🔔", "artifact_rsg": "🍑", "artifact_hyjj": "👁",
 	"nine_elixir": "💊", "boss_burst": "⚔", "clone_spell": "🐒", "double_potion": "🔥",
@@ -69,6 +76,14 @@ func get_active_round_consumables() -> Array:
 func get_item_icon(item_or_data) -> String:
 	var data = item_or_data.resource_data if item_or_data is RefCounted else item_or_data
 	return ITEM_ICONS.get(data.get("id", ""), "🎴")
+
+func get_artifact_texture_path(item_or_data) -> String:
+	var data = item_or_data.resource_data if item_or_data is RefCounted else item_or_data
+	return ARTIFACT_TEXTURE_PATHS.get(data.get("id", ""), "")
+
+func get_artifact_texture(item_or_data) -> Texture2D:
+	var path := get_artifact_texture_path(item_or_data)
+	return load(path) if path != "" and ResourceLoader.exists(path) else null
 
 func get_item_type_label(item_data: Dictionary) -> String:
 	if item_data.get("item_type", 1) == 0:

@@ -2,21 +2,22 @@
 # 在 project.godot 中设置为 Autoload
 extends Node
 
-# 复古牌桌调色板：暖红背景、奶油牌面、金色描边和高饱和功能色
-const COLOR_BG_DEEP     = Color(0.18, 0.035, 0.055, 1)
-const COLOR_BG_PANEL    = Color(0.12, 0.08, 0.14, 1)
-const COLOR_BG_CARD     = Color(0.98, 0.91, 0.72, 1)
-const COLOR_BORDER      = Color(0.72, 0.47, 0.20, 1)
-const COLOR_ACCENT      = Color(0.00, 0.86, 0.72, 1)
-const COLOR_GOLD        = Color(1.00, 0.78, 0.18, 1)
-const COLOR_RED         = Color(0.92, 0.12, 0.15, 1)
-const COLOR_TEXT_MAIN   = Color(1.00, 0.94, 0.76, 1)
-const COLOR_TEXT_DIM    = Color(0.72, 0.64, 0.58, 1)
-const COLOR_CRIT        = Color(1.00, 0.32, 0.08, 1)
-const COLOR_RARE        = Color(1.00, 0.70, 0.05, 1)
-const COLOR_JOKER       = Color(0.73, 0.31, 1.00, 1)
-const COLOR_BLUE_CHIP   = Color(0.23, 0.58, 1.00, 1)
-const COLOR_CARD_INK    = Color(0.16, 0.10, 0.12, 1)
+# 扑克 roguelike 调色板：暗青牌桌 + 酒红按钮 + 奶油纸牌 + 黄铜高光。
+const COLOR_BG_DEEP     = Color("06191b")
+const COLOR_BG_PANEL    = Color("102c30")
+const COLOR_BG_CARD     = Color("f6edcf")
+const COLOR_BORDER      = Color("286064")
+const COLOR_ACCENT      = Color("35c6aa")
+const COLOR_GOLD        = Color("f3c45b")
+const COLOR_RED         = Color("e4473d")
+const COLOR_TEXT_MAIN   = Color("fff3d3")
+const COLOR_TEXT_DIM    = Color("9db7b2")
+const COLOR_CRIT        = Color("f2573f")
+const COLOR_RARE        = Color("ffcc33")
+const COLOR_JOKER       = Color("b48ae8")
+const COLOR_BLUE_CHIP   = Color("4a9ee8")
+const COLOR_CARD_INK    = Color("211a1a")
+const COLOR_HOT_PINK    = Color("dc557f")
 
 # 套花色配色
 const SUIT_COLORS = {
@@ -34,57 +35,58 @@ func _ready():
 
 func get_panel_style(bg: Color = COLOR_BG_PANEL, border: Color = COLOR_BORDER, radius: int = 10) -> StyleBoxFlat:
 	var s = StyleBoxFlat.new()
-	s.bg_color = bg
+	s.bg_color = Color(bg.r, bg.g, bg.b, 0.94)
 	s.border_color = border
 	s.set_border_width_all(2)
 	s.set_corner_radius_all(radius)
-	s.shadow_color = Color(0.03, 0.01, 0.02, 0.55)
+	s.shadow_color = Color(border.r, border.g, border.b, 0.32)
 	s.shadow_size = 5
-	s.content_margin_left   = 6
-	s.content_margin_right  = 6
-	s.content_margin_top    = 5
-	s.content_margin_bottom = 5
+	s.content_margin_left   = 9
+	s.content_margin_right  = 9
+	s.content_margin_top    = 7
+	s.content_margin_bottom = 7
 	return s
 
 func get_card_style(suit_color: Color, selected: bool = false) -> StyleBoxFlat:
 	var s = StyleBoxFlat.new()
 	if selected:
-		s.bg_color = Color(1.00, 0.80, 0.28, 1)
+		s.bg_color = Color("ffd968")
 		s.border_color = COLOR_GOLD
-		s.set_border_width_all(3)
-		s.shadow_color = Color(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.42)
-		s.shadow_size = 8
+		s.set_border_width_all(4)
+		s.shadow_color = Color(COLOR_GOLD.r, COLOR_GOLD.g, COLOR_GOLD.b, 0.72)
+		s.shadow_size = 9
 	else:
 		s.bg_color = COLOR_BG_CARD
 		s.border_color = suit_color.darkened(0.2)
 		s.set_border_width_all(2)
 		s.shadow_color = Color(0.03, 0.01, 0.02, 0.36)
 		s.shadow_size = 4
-	s.set_corner_radius_all(6)
+	s.set_corner_radius_all(7)
 	return s
 
 func get_button_style(color: Color = COLOR_ACCENT) -> StyleBoxFlat:
 	var s = StyleBoxFlat.new()
-	s.bg_color = Color(0.10, 0.06, 0.12, 1).lerp(color, 0.22)
+	s.bg_color = Color("122b2e").lerp(color, 0.38)
 	s.border_color = color
-	s.set_border_width_all(2)
-	s.set_corner_radius_all(6)
-	s.shadow_color = Color(0.03, 0.01, 0.02, 0.5)
-	s.shadow_size = 4
+	s.set_border_width_all(3)
+	s.set_corner_radius_all(8)
+	s.shadow_color = Color(color.r, color.g, color.b, 0.48)
+	s.shadow_size = 6
 	s.content_margin_left   = 10
 	s.content_margin_right  = 10
-	s.content_margin_top    = 6
-	s.content_margin_bottom = 6
+	s.content_margin_top    = 8
+	s.content_margin_bottom = 8
 	return s
 
 func get_button_hover_style(color: Color = COLOR_ACCENT) -> StyleBoxFlat:
 	var s = get_button_style(color)
-	s.bg_color = Color(0.10, 0.06, 0.12, 1).lerp(color, 0.38)
+	s.bg_color = Color("163638").lerp(color, 0.58)
+	s.shadow_size = 9
 	return s
 
 func get_button_pressed_style(color: Color = COLOR_ACCENT) -> StyleBoxFlat:
 	var s = get_button_style(color)
-	s.bg_color = Color(0.10, 0.06, 0.12, 1).lerp(color, 0.55)
+	s.bg_color = Color("071d20").lerp(color, 0.70)
 	s.border_color = color.lightened(0.18)
 	return s
 
@@ -114,13 +116,15 @@ func _build_theme() -> Theme:
 
 	# --- ProgressBar ---
 	var pb_bg = StyleBoxFlat.new()
-	pb_bg.bg_color = Color(0.07, 0.04, 0.08, 1)
-	pb_bg.set_border_width_all(2)
-	pb_bg.border_color = COLOR_BORDER
-	pb_bg.set_corner_radius_all(4)
+	pb_bg.bg_color = Color("061416")
+	pb_bg.set_border_width_all(3)
+	pb_bg.border_color = Color("31595a")
+	pb_bg.set_corner_radius_all(8)
 	var pb_fill = StyleBoxFlat.new()
-	pb_fill.bg_color = COLOR_GOLD
-	pb_fill.set_corner_radius_all(4)
+	pb_fill.bg_color = COLOR_CRIT
+	pb_fill.border_color = COLOR_GOLD
+	pb_fill.set_border_width_all(2)
+	pb_fill.set_corner_radius_all(8)
 	t.set_stylebox("background", "ProgressBar", pb_bg)
 	t.set_stylebox("fill",       "ProgressBar", pb_fill)
 

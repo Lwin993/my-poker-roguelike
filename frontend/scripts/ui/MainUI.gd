@@ -7,6 +7,9 @@ extends Control
 @onready var result_screen = $ResultScreen
 @onready var rules_dialog  = $RulesDialog
 @onready var gold_coins_label = $MainMenu/Center/VBox/GoldCoinsLabel
+@onready var menu_backdrop = $MainMenu/Backdrop
+@onready var logo_label = $MainMenu/Center/VBox/Logo
+@onready var start_button = $MainMenu/Center/VBox/StartButton
 
 # 子场景脚本引用（动态加载）
 var _game_board_ui = null
@@ -37,12 +40,14 @@ func _ready():
 
 	# 首次进入主菜单时查询外部金币余额
 	GameAPI.get_wallet_balance()
+	_start_menu_juice()
 
 func _style_button(btn: Button, color: Color):
 	btn.add_theme_stylebox_override("normal", GameTheme.get_button_style(color))
 	btn.add_theme_stylebox_override("hover", GameTheme.get_button_hover_style(color))
 	btn.add_theme_stylebox_override("pressed", GameTheme.get_button_pressed_style(color))
 	btn.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_MAIN)
+	btn.add_theme_color_override("font_hover_color", Color.WHITE)
 
 func _load_sub_scenes():
 	# 动态加载子场景内容
@@ -72,6 +77,13 @@ func _load_sub_scenes():
 		_rank_ui = rank_inst
 
 func _on_start_pressed():
+	menu_backdrop.flash(GameTheme.COLOR_GOLD, 0.22)
+	menu_backdrop.burst(start_button.global_position + start_button.size * 0.5, GameTheme.COLOR_GOLD, 38)
+	var press = create_tween()
+	start_button.pivot_offset = start_button.size * 0.5
+	press.tween_property(start_button, "scale", Vector2(0.94, 0.94), 0.07)
+	press.tween_property(start_button, "scale", Vector2(1.05, 1.05), 0.10).set_ease(Tween.EASE_OUT)
+	press.tween_property(start_button, "scale", Vector2.ONE, 0.10)
 	GameAPI.start_game()
 	# RoundManager.start_new_game() is deferred to _on_game_started callback
 	# after ConfigLoader has loaded configs from backend
@@ -128,3 +140,15 @@ func _on_game_started(data: Dictionary):
 	_entry_cost = int(data.get("entry_cost", 10))
 	gold_coins_label.text = "💰 金币: %d" % GameAPI.gold_coins
 	RoundManager.start_new_game()
+
+func _start_menu_juice():
+	logo_label.pivot_offset = logo_label.size * 0.5
+	var logo_tw = create_tween().set_loops()
+	logo_tw.tween_property(logo_label, "position:y", logo_label.position.y - 8.0, 1.1).set_ease(Tween.EASE_IN_OUT)
+	logo_tw.parallel().tween_property(logo_label, "rotation", -0.05, 1.1)
+	logo_tw.tween_property(logo_label, "position:y", logo_label.position.y + 8.0, 1.1).set_ease(Tween.EASE_IN_OUT)
+	logo_tw.parallel().tween_property(logo_label, "rotation", 0.05, 1.1)
+	start_button.pivot_offset = start_button.size * 0.5
+	var start_tw = create_tween().set_loops()
+	start_tw.tween_property(start_button, "scale", Vector2(1.025, 1.025), 0.65).set_ease(Tween.EASE_IN_OUT)
+	start_tw.tween_property(start_button, "scale", Vector2.ONE, 0.65).set_ease(Tween.EASE_IN_OUT)
