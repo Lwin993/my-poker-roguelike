@@ -83,16 +83,31 @@ class ScoreCalculatorTest {
     }
 
     @Test
-    @DisplayName("v3.1: should_applyConsumableMultFactor_when_doublePotion")
-    void should_applyConsumableMultFactor_when_doublePotion() {
+    @DisplayName("v3.1: should_applyRoundWideMultAdd_when_frenzyPotion")
+    void should_applyRoundWideMultAdd_when_frenzyPotion() {
         HandResult hand = handResult(HandRank.ONE_PAIR);
         List<Card> cards = pairOfKings();
         List<String> consumables = List.of("double_potion");
 
-        // chips=40, baseMult=2, double_potion: mult *= 2.0
-        // mult = 2 × 2.0 = 4.0, score = 40 × 4 = 160 (no crit)
+        // chips=40, baseMult=2, 狂战药水: mult += 3
+        // mult = 5.0, score = 40 × 5 = 200 (seed 1 不暴击)
         ScoreResult result = ScoreCalculator.calculate(hand, cards, List.of(), consumables, 1L);
-        assertTrue(result.getScore() >= 160); // at least 160 (160 if no crit)
+        assertEquals(5.0, result.getMult());
+        assertEquals(200, result.getScore());
+    }
+
+    @Test
+    @DisplayName("v3.1: should_applyCloneSpellAsPlusFourBeforeBossMultiplier")
+    void should_applyCloneSpellAsPlusFourBeforeBossMultiplier() {
+        HandResult hand = handResult(HandRank.ONE_PAIR);
+        List<Card> cards = pairOfKings();
+
+        ScoreResult result = ScoreCalculator.calculate(
+                hand, cards, List.of(), List.of("boss_burst", "clone_spell"), 1L);
+
+        // (基础倍率2 + 分身术4) × 斩妖剑3 = 18；与道具选择顺序无关。
+        assertEquals(18.0, result.getMult());
+        assertEquals(720, result.getScore());
     }
 
     @Test

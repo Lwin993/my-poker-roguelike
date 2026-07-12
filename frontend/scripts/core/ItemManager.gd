@@ -3,14 +3,25 @@ extends Node
 
 var jokers: Array = []
 var consumables: Array = []
+var active_round_consumables: Array = []
 var _registered_items: Dictionary = {}  # id -> item_data
 
-const CONSUMABLE_LIMIT := 3
+const CONSUMABLE_LIMIT := -1  # v3.1: 道具不限制携带与同次使用数量
+const ARTIFACT_IDS := ["artifact_jgb", "artifact_zjl", "artifact_rsg", "artifact_hyjj"]
+
+const ITEM_ICONS := {
+	"artifact_jgb": "🏏", "artifact_zjl": "🔔", "artifact_rsg": "🍑", "artifact_hyjj": "👁",
+	"nine_elixir": "💊", "boss_burst": "⚔", "clone_spell": "🐒", "double_potion": "🔥",
+	"crit_potion": "💥", "freeze_spell": "🖐", "far_sight": "🔭", "final_play_ticket": "📜",
+	"extra_play": "📜", "refresh_ticket": "🎟", "mirror_reveal": "🪞", "wind_calmer": "🟡",
+	"holy_dew": "💧", "quint_crit": "⚡", "cloud_step": "☁", "seventy_two": "🌀",
+}
 
 # ---- 初始化 ----
 func reset():
 	jokers.clear()
 	consumables.clear()
+	active_round_consumables.clear()
 
 func clear_registered_items():
 	_registered_items.clear()
@@ -44,13 +55,28 @@ func buy_item(item_data: Dictionary) -> bool:
 	return true
 
 func can_add_consumable() -> bool:
-	return consumables.size() < CONSUMABLE_LIMIT
+	return CONSUMABLE_LIMIT < 0 or consumables.size() < CONSUMABLE_LIMIT
 
 func get_consumable_limit() -> int:
 	return CONSUMABLE_LIMIT
 
 func get_active_joker_states() -> Array:
 	return jokers
+
+func get_active_round_consumables() -> Array:
+	return active_round_consumables
+
+func get_item_icon(item_or_data) -> String:
+	var data = item_or_data.resource_data if item_or_data is RefCounted else item_or_data
+	return ITEM_ICONS.get(data.get("id", ""), "🎴")
+
+func get_item_type_label(item_data: Dictionary) -> String:
+	if item_data.get("item_type", 1) == 0:
+		return "法宝 · 永久生效"
+	return "稀有道具" if item_data.get("rarity", 0) == 1 else "消耗道具"
+
+func create_item_effect(item_data: Dictionary):
+	return _create_effect(item_data)
 
 func get_consumable_by_id(id: String):
 	for item in consumables:
@@ -64,10 +90,52 @@ func consume_item(id: String):
 			consumables.remove_at(i)
 			return
 
+func consume_instance(item) -> bool:
+	var idx = consumables.find(item)
+	if idx == -1:
+		return false
+	consumables.remove_at(idx)
+	return true
+
+func activate_round_consumable(item) -> bool:
+	if not consume_instance(item):
+		return false
+	active_round_consumables.append(item)
+	return true
+
 func on_round_end():
-	for i in range(consumables.size() - 1, -1, -1):
-		if consumables[i].is_round_wide():
-			consumables.remove_at(i)
+	active_round_consumables.clear()
+
+func restore_items(joker_states: Array, consumable_ids: Array, active_round_ids: Array = []):
+	jokers.clear()
+	consumables.clear()
+	active_round_consumables.clear()
+	for state in joker_states:
+		var id = state.get("id", "")
+		var data = get_item_data(id)
+		if data.is_empty(): continue
+		var effect = _create_effect(data)
+		effect.level = clampi(int(state.get("level", 1)), 1, 3)
+		jokers.append(effect)
+	for id in consumable_ids:
+		var data = get_item_data(str(id))
+		if not data.is_empty(): consumables.append(_create_effect(data))
+	for id in active_round_ids:
+		var data = get_item_data(str(id))
+		if not data.is_empty(): active_round_consumables.append(_create_effect(data))
+
+# 七十二变：随机复制一个法宝 Lv1 效果，作为新的永久法宝加入。
+func add_random_artifact_copy() -> String:
+	var candidates: Array = []
+	for id in ARTIFACT_IDS:
+		if _registered_items.has(id): candidates.append(id)
+	if candidates.is_empty():
+		return ""
+	var copied_id: String = candidates.pick_random()
+	var effect = _create_effect(get_item_data(copied_id))
+	effect.level = 1
+	jokers.append(effect)
+	return effect.resource_data.get("display_name", "法宝")
 
 func upgrade_joker(joker) -> bool:
 	if joker.level >= 3: return false

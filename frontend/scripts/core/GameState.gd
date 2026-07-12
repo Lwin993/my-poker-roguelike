@@ -20,6 +20,8 @@ func save_state():
 		"discard_pile": DeckManager.discard_pile.map(func(c): return c.serialize()),
 		"jokers": ItemManager.jokers.map(func(j): return {"id": j.resource_data.get("id", ""), "level": j.level}),
 		"consumables": ItemManager.consumables.map(func(c): return c.resource_data.get("id", "")),
+		"active_round_consumables": ItemManager.active_round_consumables.map(func(c): return c.resource_data.get("id", "")),
+		"hand_limit": DeckManager.hand_limit,
 		"play_log": RoundManager.play_log,
 	}
 	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
@@ -51,7 +53,7 @@ func _restore_from_dict(state: Dictionary):
 	RoundManager.total_score    = state.get("total_score", 0)
 	RoundManager.game_coins     = state.get("game_coins", 0)
 	RoundManager.plays_left     = state.get("plays_left", 4)
-	RoundManager.discards_left  = state.get("discards_left", 5)  # v3.1: 每怪5次
+	RoundManager.discards_left  = state.get("discards_left", 4)
 	RoundManager.revive_count   = state.get("revive_count", 0)
 	RoundManager.play_log       = state.get("play_log", [])
 
@@ -59,6 +61,19 @@ func _restore_from_dict(state: Dictionary):
 	DeckManager.deck = _deserialize_cards(state.get("deck", []))
 	DeckManager.hand = _deserialize_cards(state.get("hand", []))
 	DeckManager.discard_pile = _deserialize_cards(state.get("discard_pile", []))
+	DeckManager.hand_limit = state.get("hand_limit", 8)
+
+	ItemManager.restore_items(
+		state.get("jokers", []),
+		state.get("consumables", []),
+		state.get("active_round_consumables", [])
+	)
+	BossSkillManager.apply_skill(RoundManager.current_round, RoundManager.current_blind)
+	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
+	for item in ItemManager.get_active_round_consumables():
+		var mods = item.get_score_modifiers()
+		if mods.get("boss_suppress", false) and BossSkillManager.does_consumable_counter_skill(item.resource_data.get("id", "")):
+			BossSkillManager.suppress_skill()
 
 func _deserialize_cards(arr: Array) -> Array:
 	var result = []

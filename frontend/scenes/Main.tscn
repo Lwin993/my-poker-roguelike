@@ -96,7 +96,7 @@ custom_minimum_size = Vector2(0, 24)
 
 [node name="TierHint" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "🏆 1000分→雪碧  3000分→奶茶  6000分→升级券  10000分→稀有奖"
+text = "🏆 1,000→雪碧  5,000→奶茶\n15,000→升级券  40,000→稀有奖"
 horizontal_alignment = 1
 theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
@@ -125,7 +125,7 @@ visible = false
 
 [node name="RulesDialog" type="AcceptDialog" parent="."]
 title = "游戏说明"
-size = Vector2(400, 520)
+size = Vector2(330, 520)
 dialog_text = "📖 游戏规则
 
 🎯 目标：三轮共9个回合，降妖除魔，累计得分越高越好！

@@ -20,8 +20,8 @@ extends Control
 @onready var crit_rate_label   = $MainVBox/ParamsPanel/ParamsHBox/CritRateLabel
 @onready var crit_mult_label   = $MainVBox/ParamsPanel/ParamsHBox/CritMultLabel
 # ── 道具区 ──
-@onready var joker_slots       = $MainVBox/JokerSection/JokerSlots
-@onready var cons_slots        = $MainVBox/JokerSection/ConsSlots
+@onready var joker_slots       = $MainVBox/JokerSection/JokerScroll/JokerSlots
+@onready var cons_slots        = $MainVBox/JokerSection/ConsScroll/ConsSlots
 # ── 手牌 / 按钮 ──
 @onready var hand_area         = $MainVBox/HandRow/HandArea
 @onready var play_button       = $MainVBox/ButtonRow/PlayButton
@@ -33,6 +33,8 @@ extends Control
 @onready var revive_dialog     = $ReviveDialog
 # ── 牌桌内联计分区 ──
 @onready var calc_title        = $MainVBox/PlaySurface/CalcTitle
+@onready var monster_avatar    = $MainVBox/PlaySurface/MonsterAvatar
+@onready var monster_title     = $MainVBox/PlaySurface/MonsterTitle
 @onready var formula_label     = $MainVBox/PlaySurface/FormulaLabel
 @onready var played_area       = $MainVBox/PlaySurface/PlayedCenter/PlayedArea
 @onready var score_burst_label = $MainVBox/PlaySurface/ScoreBurstLabel
@@ -50,8 +52,7 @@ extends Control
 @onready var joker_detail_close   = $JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox/JokerDetailClose
 
 # ── 状态 ──
-var _used_consumable_ids:   Array = []
-var _used_consumable_items: Array = []
+var _used_consumable_items: Array = [] # 已加入“下一次出牌”的具体道具实例，允许同名叠加
 var _selected_indices:      Array = []
 var _card_nodes:            Array = []
 var _base_score_preview:    int   = 0
@@ -73,6 +74,11 @@ func _ready():
 
 	_style_main_button(play_button,    GameTheme.COLOR_ACCENT)
 	_style_main_button(discard_button, GameTheme.COLOR_GOLD)
+	_style_panel($MainVBox/TopBar/RoundBadge, GameTheme.COLOR_GOLD, 0.12)
+	_style_panel($MainVBox/TopBar/EconomyPanel, GameTheme.COLOR_ACCENT, 0.10)
+	_style_panel($MainVBox/ScoreContainer, GameTheme.COLOR_CRIT, 0.10)
+	_style_panel($MainVBox/ParamsPanel, GameTheme.COLOR_BLUE_CHIP, 0.08)
+	_style_panel($JokerDetailOverlay/JokerDetailPanel, GameTheme.COLOR_JOKER, 0.12)
 
 	play_button.pressed.connect(_on_play_pressed)
 	discard_button.pressed.connect(_on_discard_pressed)
@@ -98,7 +104,7 @@ func _ready():
 
 	_style_button(joker_detail_close, GameTheme.COLOR_BLUE_CHIP)
 	crit_rate_label.visible = true
-	crit_mult_label.visible = false
+	crit_mult_label.visible = true
 	_reset_inline_calc()
 	_update_ui()
 
@@ -113,6 +119,10 @@ func _style_main_button(btn: Button, color: Color):
 	btn.add_theme_stylebox_override("pressed", p)
 	btn.add_theme_color_override("font_color",       GameTheme.COLOR_TEXT_MAIN)
 	btn.add_theme_color_override("font_hover_color", Color.WHITE)
+
+func _style_panel(panel: PanelContainer, color: Color, mix: float):
+	panel.add_theme_stylebox_override("panel", GameTheme.get_panel_style(
+		GameTheme.COLOR_BG_PANEL.lerp(color, mix), color.darkened(0.20), 9))
 
 func _style_button(btn: Button, color: Color):
 	var s = GameTheme.get_button_style(color)
@@ -185,12 +195,13 @@ func _refresh_all():
 # 基础 UI
 # ════════════════════════════════════════════════════════════════
 func _update_ui():
-	round_label.text  = RoundManager.get_current_blind_name()
+	round_label.text  = "%s\n%s" % [RoundManager.get_current_stage_label(), RoundManager.get_current_blind_name()]
+	monster_avatar.text = RoundManager.MONSTER_ICONS[RoundManager.current_round][RoundManager.current_blind]
+	monster_title.text = RoundManager.get_current_blind_name()
 	coins_label.text  = "💎 %d" % RoundManager.game_coins
-	total_score_label.text = "累计总分: %d" % RoundManager.total_score
+	total_score_label.text = "总伤 %d" % RoundManager.total_score
 
 	# v3.1: 怪物名+技能提示
-	var monster_name = RoundManager.get_current_monster_name()
 	var skill_text = RoundManager.get_current_enemy_skill_text()
 	if skill_text != "":
 		boss_skill_label.text = skill_text
@@ -213,9 +224,10 @@ func _update_ui():
 		GameTheme.COLOR_GOLD if discards > 0 else Color(0.42, 0.26, 0.28, 1))
 
 	var threshold = RoundManager.get_current_threshold()
-	score_label.text     = "%d" % RoundManager.round_score
-	threshold_label.text = "❤️ 血量: %d / %d" % [RoundManager.round_score, threshold]
-	round_score_detail.text = "已造成伤害: %d" % RoundManager.round_score
+	var hp_left = maxi(0, threshold - RoundManager.round_score)
+	score_label.text     = "%d" % hp_left
+	threshold_label.text = "❤️ %s剩余血量" % RoundManager.get_current_blind_name()
+	round_score_detail.text = "已造成 %d / %d 伤害" % [RoundManager.round_score, threshold]
 	progress_bar.max_value = threshold
 	progress_bar.value     = min(RoundManager.round_score, threshold)
 
@@ -230,10 +242,12 @@ func _on_score_updated(_rs: int, _ts: int):
 # ════════════════════════════════════════════════════════════════
 func _update_params_panel(hand_result: Dictionary = {}):
 	_base_score_preview = hand_result.get("base_chips", 0) + hand_result.get("card_chips", 0)
+	var active_items = ItemManager.get_active_round_consumables().duplicate()
+	active_items.append_array(_used_consumable_items)
 	var params = ScoreCalculator.preview_params(
 		hand_result,
 		ItemManager.get_active_joker_states(),
-		_used_consumable_items,
+		active_items,
 		DeckManager.hand
 	)
 	_apply_params_to_labels(
@@ -245,8 +259,8 @@ func _update_params_panel(hand_result: Dictionary = {}):
 	)
 
 func _apply_params_to_labels(mult: float, cr: float, cm: float, sm: float = 1.0, sm_prob: float = -1.0):
-	mult_label.text      = "基础伤害 %d\n倍率 ×%.2f" % [_base_score_preview, mult]
-	crit_rate_label.text = "暴击率 %d%%" % int(cr * 100)
+	mult_label.text      = "伤害 %d  ×  倍率 %.2f" % [_base_score_preview, mult]
+	crit_rate_label.text = "暴击 %d%%" % int(cr * 100)
 	crit_mult_label.text = "暴击时 ×%.1f" % cm
 	if sm > 1.01:
 		var prob_str = " (%d%%概率)" % int(sm_prob * 100) if sm_prob >= 0.0 else ""
@@ -296,7 +310,7 @@ func _sort_deck_by_rank():
 func _make_card_button(card, idx: int) -> Button:
 	var sc  = SUIT_COLORS[card.suit]
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(74, 112)
+	btn.custom_minimum_size = Vector2(42, 76)
 
 	# v3.1: 精英怪/大妖技能视觉特效
 	var is_locked = not BossSkillManager.is_card_selectable(idx, DeckManager.hand)
@@ -305,20 +319,20 @@ func _make_card_button(card, idx: int) -> Button:
 	if is_hidden:
 		# 背面朝上（小旋风/风沙走石）
 		btn.text = "?\n?"
-		btn.add_theme_font_size_override("font_size", 28)
+		btn.add_theme_font_size_override("font_size", 21)
 		btn.add_theme_color_override("font_color", Color(0.5, 0.5, 0.5, 1))
 		_apply_card_style(btn, Color(0.3, 0.3, 0.3, 1), false)
 		btn.tooltip_text = "此牌被遮挡，无法查看"
 	elif is_locked:
 		# 幻影牌/锁定牌（骷髅将/白骨幻术）
 		btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
-		btn.add_theme_font_size_override("font_size", 24)
+		btn.add_theme_font_size_override("font_size", 18)
 		btn.add_theme_color_override("font_color", Color(0.6, 0.6, 0.6, 0.5))
 		_apply_card_style(btn, Color(0.5, 0.5, 0.5, 0.6), false)
 		btn.tooltip_text = "此牌被锁定，不可选中"
 	else:
 		btn.text = "%s\n%s" % [card.get_rank_name(), SUIT_SYMBOLS[card.suit]]
-		btn.add_theme_font_size_override("font_size", 24)
+		btn.add_theme_font_size_override("font_size", 18)
 		btn.add_theme_color_override("font_color", sc)
 		_apply_card_style(btn, sc, false)
 
@@ -333,12 +347,12 @@ func _apply_card_style(btn: Button, sc: Color, selected: bool):
 	hover.border_color = sc if not selected else Color(1.0, 0.96, 0.52, 1)
 	normal.content_margin_left = 8
 	normal.content_margin_right = 8
-	normal.content_margin_top = 14
-	normal.content_margin_bottom = 14
+	normal.content_margin_top = 8
+	normal.content_margin_bottom = 8
 	hover.content_margin_left = 8
 	hover.content_margin_right = 8
-	hover.content_margin_top = 14
-	hover.content_margin_bottom = 14
+	hover.content_margin_top = 8
+	hover.content_margin_bottom = 8
 	btn.add_theme_stylebox_override("normal",  normal)
 	btn.add_theme_stylebox_override("hover",   hover)
 	btn.add_theme_stylebox_override("pressed", normal)
@@ -379,7 +393,7 @@ func _update_card_visuals():
 		var sel = _selected_indices.has(i)
 		_apply_card_style(btn, sc, sel)
 		btn.add_theme_color_override("font_color", GameTheme.COLOR_CARD_INK if sel else sc)
-		btn.position.y = -12 if sel else 0
+		btn.position.y = -8 if sel else 0
 	_update_played_preview()
 
 func _update_hand_name_label():
@@ -392,12 +406,28 @@ func _update_hand_name_label():
 			if not BossSkillManager.is_card_visible(idx):
 				has_hidden = true
 				break
-		var display_chips = result.base_chips + result.card_chips
 		var hidden_hint = " (+?)" if has_hidden else ""
-		hand_name_label.text = "%s\n伤害 %d%s  ×%d" % [result.hand_name, result.base_chips, hidden_hint, result.base_mult]
-		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
-		_base_score_preview = result.base_chips + result.card_chips
-		_update_params_panel(result)
+		var allowed = BossSkillManager.is_hand_rank_allowed(result.rank)
+		if has_hidden:
+			hand_name_label.text = "未知牌型\n含遮挡牌 · 出牌后揭晓"
+			hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
+			_base_score_preview = 0
+			var active_items = ItemManager.get_active_round_consumables().duplicate()
+			active_items.append_array(_used_consumable_items)
+			var safe_params = ScoreCalculator.preview_params({}, ItemManager.get_active_joker_states(), active_items, DeckManager.hand)
+			_apply_params_to_labels(safe_params.get("mult", 1.0), safe_params.get("crit_rate", 0.05), safe_params.get("crit_mult", 2.0))
+			play_button.text = "⚔ 盲打出牌"
+		elif allowed:
+			hand_name_label.text = "%s\n%d%s × %d" % [result.hand_name, result.base_chips + result.card_chips, hidden_hint, result.base_mult]
+			hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_GOLD)
+			play_button.text = "⚔ 出牌"
+		else:
+			hand_name_label.text = "%s\n🔥 真火阻挡 · 伤害归零" % result.hand_name
+			hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
+			play_button.text = "🔥 出牌（0伤害）"
+		if not has_hidden:
+			_base_score_preview = result.base_chips + result.card_chips
+			_update_params_panel(result)
 	elif _selected_indices.size() > 0:
 		# v3.1: 实时预览 — 即使不足5张也计算当前选中牌的伤害值
 		# 翻面牌（?）的伤害值不显示，避免暴露牌面
@@ -417,16 +447,22 @@ func _update_hand_name_label():
 		# 预览参数面板用部分牌的chips（翻面牌不含）
 		_base_score_preview = card_chips
 		_apply_params_to_labels(1.0, 0.05, 2.0)
+		play_button.text = "⚔ 出牌"
 	else:
 		hand_name_label.text = "选择 5 张牌"
 		hand_name_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
+		play_button.text = "⚔ 出牌"
 		_update_params_panel()
 
 func _update_played_preview():
 	for child in played_area.get_children():
 		child.queue_free()
 	if _selected_indices.is_empty():
+		monster_avatar.visible = true
+		monster_title.visible = true
 		return
+	monster_avatar.visible = false
+	monster_title.visible = false
 	for idx in _selected_indices:
 		if idx >= 0 and idx < DeckManager.hand.size():
 			played_area.add_child(_make_table_card(DeckManager.hand[idx], idx))
@@ -436,7 +472,7 @@ func _make_table_card(card, idx: int = -1) -> Button:
 	var sc = SUIT_COLORS[card.suit]
 	var btn = Button.new()
 	btn.disabled = true
-	btn.custom_minimum_size = Vector2(58, 86)
+	btn.custom_minimum_size = Vector2(52, 76)
 	if is_hidden:
 		btn.text = "?\n?"
 		btn.add_theme_font_size_override("font_size", 19)
@@ -482,7 +518,7 @@ func _make_joker_badge(joker) -> Control:
 	var color = GameTheme.COLOR_JOKER
 
 	var btn = Button.new()
-	btn.custom_minimum_size = Vector2(74, 58)
+	btn.custom_minimum_size = Vector2(58, 56)
 	btn.tooltip_text = joker.resource_data.get("description", "")
 
 	var s = StyleBoxFlat.new()
@@ -501,7 +537,7 @@ func _make_joker_badge(joker) -> Control:
 	var row = HBoxContainer.new(); row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_theme_constant_override("separation", 2); vb.add_child(row)
 
-	var icon = Label.new(); icon.text = "🎭"; icon.add_theme_font_size_override("font_size", 15)
+	var icon = Label.new(); icon.text = ItemManager.get_item_icon(joker); icon.add_theme_font_size_override("font_size", 15)
 	row.add_child(icon)
 	var lv = Label.new(); lv.text = "Lv%d" % joker.level
 	lv.add_theme_font_size_override("font_size", 10)
@@ -526,7 +562,7 @@ func _show_joker_detail(joker):
 	var name_str = joker.resource_data.get("display_name", "?")
 	var desc_str = joker.resource_data.get("description", "")
 
-	joker_detail_title.text = "🎭  %s" % name_str
+	joker_detail_title.text = "%s  %s" % [ItemManager.get_item_icon(joker), name_str]
 	joker_detail_level.text = "等级：Lv%d / 3" % joker.level
 	# 优先使用动态描述（如火眼金睛会反映当前花色和伤害值）
 	if joker.has_method("get_dynamic_description"):
@@ -608,13 +644,34 @@ func _add_param_row(param_name: String, value_str: String, color: Color, active:
 # ════════════════════════════════════════════════════════════════
 func _rebuild_consumables():
 	for child in cons_slots.get_children(): child.queue_free()
-	if ItemManager.consumables.is_empty():
-		var lbl = Label.new(); lbl.text = "暂无冲分道具"
+	for active in ItemManager.get_active_round_consumables():
+		cons_slots.add_child(_make_active_effect_badge(active))
+	if ItemManager.consumables.is_empty() and ItemManager.get_active_round_consumables().is_empty():
+		var lbl = Label.new(); lbl.text = "暂无道具"
 		lbl.add_theme_font_size_override("font_size", 12)
 		lbl.add_theme_color_override("font_color", Color(0.4, 0.4, 0.5, 1))
 		cons_slots.add_child(lbl); return
 	for cons in ItemManager.consumables:
 		cons_slots.add_child(_make_consumable_card(cons))
+
+func _make_active_effect_badge(cons) -> Control:
+	var color = GameTheme.COLOR_RARE if cons.resource_data.get("rarity", 0) == 1 else GameTheme.COLOR_ACCENT
+	var btn = Button.new()
+	btn.custom_minimum_size = Vector2(60, 56)
+	btn.text = "%s\n持续中" % ItemManager.get_item_icon(cons)
+	btn.add_theme_font_size_override("font_size", 10)
+	btn.tooltip_text = "%s\n%s\n✓ 当前怪物战持续生效" % [
+		cons.resource_data.get("display_name", "道具"), cons.resource_data.get("description", "")]
+	var style = StyleBoxFlat.new()
+	style.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.32)
+	style.border_color = color.lightened(0.18)
+	style.set_border_width_all(2); style.set_corner_radius_all(8)
+	style.shadow_color = Color(color.r, color.g, color.b, 0.35); style.shadow_size = 5
+	btn.add_theme_stylebox_override("normal", style)
+	btn.add_theme_color_override("font_color", color.lightened(0.2))
+	var captured = cons
+	btn.pressed.connect(func(): _show_consumable_detail(captured, true))
+	return btn
 
 func _make_consumable_card(cons) -> Control:
 	var id      = cons.resource_data.get("id", "")
@@ -623,8 +680,8 @@ func _make_consumable_card(cons) -> Control:
 	var desc_s  = cons.resource_data.get("description", "")
 	var color   = GameTheme.COLOR_RARE if rarity == 1 else GameTheme.COLOR_ACCENT
 
-	# v3.1: 构建 tooltip 包含具体效果数值
-	var tooltip = "%s\n%s" % [name_s, desc_s]
+	# 移动端直接可见“时机 + 数值”，桌面端同时保留完整 tooltip。
+	var tooltip = "%s\n%s\n⏱ %s" % [name_s, desc_s, cons.get_use_timing_label()]
 	if cons.has_method("get_score_modifiers"):
 		var mods = cons.get_score_modifiers()
 		var parts = []
@@ -635,10 +692,13 @@ func _make_consumable_card(cons) -> Control:
 		if mods.get("crit_mult_add", 0) != 0: parts.append("暴击倍数+%.1f" % mods.get("crit_mult_add", 0))
 		if mods.get("hand_size_add", 0) != 0: parts.append("手牌上限+%d" % int(mods.get("hand_size_add", 0)))
 		if mods.get("play_add", 0) != 0: parts.append("出牌次数+%d" % int(mods.get("play_add", 0)))
+		if mods.get("extra_plays", 0) != 0: parts.append("出牌次数+%d" % int(mods.get("extra_plays", 0)))
+		if mods.get("extra_discards", 0) != 0: parts.append("换牌次数+%d" % int(mods.get("extra_discards", 0)))
+		if mods.get("boss_suppress", false): parts.append("克制对应大妖技能")
 		if parts.size() > 0:
 			tooltip += "\n⚡ %s" % "  ".join(parts)
 
-	var panel = PanelContainer.new(); panel.custom_minimum_size = Vector2(74, 54)
+	var panel = PanelContainer.new(); panel.custom_minimum_size = Vector2(66, 58)
 	panel.tooltip_text = tooltip
 	var ps = StyleBoxFlat.new()
 	ps.bg_color = GameTheme.COLOR_BG_PANEL.lerp(color, 0.16); ps.border_color = color.darkened(0.05)
@@ -649,7 +709,7 @@ func _make_consumable_card(cons) -> Control:
 
 	var vb = VBoxContainer.new(); vb.add_theme_constant_override("separation", 2); panel.add_child(vb)
 
-	var icon = Label.new(); icon.text = "✨" if rarity == 1 else "🧪"
+	var icon = Label.new(); icon.text = ItemManager.get_item_icon(cons)
 	icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER; icon.add_theme_font_size_override("font_size", 13)
 	icon.tooltip_text = tooltip
 	vb.add_child(icon)
@@ -659,7 +719,14 @@ func _make_consumable_card(cons) -> Control:
 	nm.add_theme_color_override("font_color", color)
 	nm.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART; nm.tooltip_text = tooltip; vb.add_child(nm)
 
-	var use_btn = Button.new(); use_btn.custom_minimum_size = Vector2(0, 18); use_btn.text = "使用"
+	var button_row = HBoxContainer.new(); button_row.add_theme_constant_override("separation", 2); vb.add_child(button_row)
+	var info_btn = Button.new(); info_btn.custom_minimum_size = Vector2(20, 20); info_btn.text = "ⓘ"
+	info_btn.tooltip_text = "查看详情"; info_btn.add_theme_font_size_override("font_size", 9)
+	button_row.add_child(info_btn)
+	var use_btn = Button.new(); use_btn.custom_minimum_size = Vector2(0, 20); use_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var timing = cons.get_use_timing()
+	use_btn.text = "取消" if _used_consumable_items.has(cons) else (
+		"加入" if timing == "next_play" else ("激活" if timing == "round" else ("仙铺" if timing == "shop" else "使用")))
 	use_btn.tooltip_text = tooltip
 	use_btn.add_theme_font_size_override("font_size", 10)
 	var bs = StyleBoxFlat.new()
@@ -668,44 +735,81 @@ func _make_consumable_card(cons) -> Control:
 	use_btn.add_theme_stylebox_override("normal", bs); use_btn.add_theme_stylebox_override("hover", bh)
 	use_btn.add_theme_color_override("font_color", color)
 	use_btn.add_theme_color_override("font_hover_color", Color.WHITE)
-	vb.add_child(use_btn)
+	button_row.add_child(use_btn)
+	var can_use = cons.can_use_now()
+	use_btn.disabled = not can_use
+	if not can_use:
+		use_btn.tooltip_text = cons.get_unavailable_reason()
 
 	var cap_id = id; var cap_cons = cons; var cap_panel = panel
 	use_btn.pressed.connect(func(): _on_consumable_used(cap_id, cap_cons, cap_panel))
+	info_btn.pressed.connect(func(): _show_consumable_detail(cap_cons))
 	return panel
 
-func _on_consumable_used(item_id: String, cons, panel: Control):
-	if _used_consumable_ids.has(item_id): return
-	_used_consumable_ids.append(item_id)
-	_used_consumable_items.append(cons)
-	# Apply special effects immediately on use (e.g., ExtraPlayTicket adds plays)
-	if cons.has_method("apply_special_effect"):
-		cons.apply_special_effect()
-		# 筋斗云增加手牌后需要重建手牌显示
-		if cons.resource_data.get("id", "") == "cloud_step":
-			_rebuild_hand()
-	# v3.1: 克制道具 — 破除大妖技能（定风丹/照妖镜/圣露）
-	var mods = cons.get_score_modifiers() if cons.has_method("get_score_modifiers") else {}
-	if mods.get("boss_suppress", false):
-		BossSkillManager.suppress_skill()
-		_rebuild_hand()  # 重建手牌显示，翻面/幻影牌恢复可见
-	# v3.1: 回合持续的道具保留在面板但禁用，一次性道具直接移除
-	if not cons.is_round_wide():
-		panel.queue_free()
-	else:
-		# 禁用使用按钮，显示"已激活"
-		for child in panel.get_children():
-			if child is Button:
-				child.disabled = true
-				child.text = "✓ 已激活"
-	_update_params_panel()
-	if _selected_indices.size() == 5:
-		var sel_cards = []; for idx in _selected_indices: sel_cards.append(DeckManager.hand[idx])
-		_update_params_panel(HandEvaluator.evaluate(sel_cards))
+func _show_consumable_detail(cons, is_active: bool = false):
+	var data = cons.resource_data
+	joker_detail_title.text = "%s  %s" % [ItemManager.get_item_icon(cons), data.get("display_name", "道具")]
+	joker_detail_level.text = "%s · %s" % [
+		"稀有" if data.get("rarity", 0) == 1 else "普通", cons.get_use_timing_label()]
+	joker_detail_desc.text = data.get("description", "")
+	for child in joker_detail_params.get_children(): child.queue_free()
+	var mods = cons.get_score_modifiers()
+	if mods.get("chip_add", 0) != 0: _add_param_row("伤害加成", "+%d" % int(mods.chip_add), Color(0.3,0.85,0.5,1), true)
+	if mods.get("mult_add", 0) != 0: _add_param_row("倍率加成", "+%.1f" % mods.mult_add, GameTheme.COLOR_BLUE_CHIP, true)
+	if mods.get("mult_factor", 1) != 1: _add_param_row("倍率乘数", "×%.1f" % mods.mult_factor, GameTheme.COLOR_GOLD, true)
+	if mods.get("crit_rate_add", 0) != 0: _add_param_row("暴击率", "+%d%%" % int(mods.crit_rate_add * 100), GameTheme.COLOR_RARE, true)
+	if mods.get("crit_mult_add", 0) != 0: _add_param_row("暴击倍率", "+%.1f" % mods.crit_mult_add, GameTheme.COLOR_CRIT, true)
+	if mods.get("extra_plays", 0) != 0: _add_param_row("出牌次数", "+%d" % int(mods.extra_plays), GameTheme.COLOR_BLUE_CHIP, true)
+	if mods.get("extra_discards", 0) != 0: _add_param_row("换牌次数", "+%d" % int(mods.extra_discards), GameTheme.COLOR_GOLD, true)
+	if mods.get("hand_size_add", 0) != 0: _add_param_row("手牌上限", "+%d" % int(mods.hand_size_add), GameTheme.COLOR_ACCENT, true)
+	if mods.get("boss_suppress", false): _add_param_row("克制效果", "整场压制对应大妖技能", GameTheme.COLOR_RARE, true)
+	var status = "✓ 当前怪物战持续生效" if is_active else ("✓ 当前可使用" if cons.can_use_now() else "暂不可用：%s" % cons.get_unavailable_reason())
+	_add_param_row("当前状态", status, GameTheme.COLOR_ACCENT if (is_active or cons.can_use_now()) else GameTheme.COLOR_TEXT_DIM, true)
+	joker_detail_overlay.visible = true
+
+func _on_consumable_used(_item_id: String, cons, _panel: Control):
+	if not cons.can_use_now():
+		_show_tip(cons.get_unavailable_reason(), GameTheme.COLOR_CRIT)
+		return
+	match cons.get_use_timing():
+		"next_play":
+			if _used_consumable_items.has(cons):
+				_used_consumable_items.erase(cons)
+			else:
+				_used_consumable_items.append(cons)
+		"round":
+			var mods = cons.get_score_modifiers()
+			if ItemManager.activate_round_consumable(cons):
+				if mods.get("boss_suppress", false):
+					BossSkillManager.suppress_skill()
+					_rebuild_hand()
+				_show_tip("%s 已激活，本场战斗持续生效" % cons.resource_data.get("display_name", "道具"), GameTheme.COLOR_ACCENT)
+		"instant":
+			var outcome = null
+			if cons.has_method("apply_special_effect"):
+				outcome = cons.apply_special_effect()
+			if cons.is_round_wide():
+				ItemManager.activate_round_consumable(cons)
+			else:
+				ItemManager.consume_instance(cons)
+			if cons.resource_data.get("id", "") == "cloud_step": _rebuild_hand()
+			if outcome is String and outcome != "":
+				_rebuild_jokers()
+				_show_tip("七十二变化作【%s】Lv1！" % outcome, GameTheme.COLOR_JOKER)
+			else:
+				_show_tip("%s 已生效" % cons.resource_data.get("display_name", "道具"), GameTheme.COLOR_ACCENT)
+		"shop":
+			_show_tip(cons.get_unavailable_reason(), GameTheme.COLOR_TEXT_DIM)
+	_rebuild_consumables()
+	_update_ui()
+	_update_hand_name_label()
+	GameState.save_state()
 
 func _clear_used_consumables():
-	_used_consumable_ids.clear()
 	_used_consumable_items.clear()
+
+func _get_queued_consumable_ids() -> Array:
+	return _used_consumable_items.map(func(c): return c.resource_data.get("id", ""))
 
 # ════════════════════════════════════════════════════════════════
 # 出牌 / 换牌
@@ -721,31 +825,36 @@ func _on_play_pressed():
 		played_cards.append(DeckManager.hand[idx])
 
 	var result = await RoundManager.play_hand(
-		_selected_indices.duplicate(), _used_consumable_ids.duplicate()
+		_selected_indices.duplicate(), _get_queued_consumable_ids()
 	)
 
 	# ── 先播完计算过程动画，再推进阶段 ──
 	await _show_calc_animation(result, played_cards)
 
 	_clear_used_consumables()
-	# v3.1: 克制道具仅生效一次出牌，出牌后恢复压制状态
-	BossSkillManager.unsuppress_skill()
-	# v3.1: 出牌后重新执行敌方技能（重新随机锁定/遮挡）
-	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 	_rebuild_hand(); _rebuild_consumables(); _update_ui(); _reset_inline_calc()
 	play_button.disabled    = RoundManager.plays_left <= 0
 	discard_button.disabled = RoundManager.discards_left <= 0
 
 	# 动画结束后由此处推进阶段（blind_cleared / out_of_plays）
 	RoundManager.advance_after_play(result)
+	GameState.save_state()
 
 func _on_discard_pressed():
 	if _selected_indices.is_empty():
 		_show_tip("请选择要换掉的牌！", Color(0.95, 0.60, 0.15, 1)); return
 	if RoundManager.discards_left <= 0: return
+	# 黄风怪的遮挡牌需消耗1次换牌机会翻开；一次只翻1张，不替换手牌。
+	if BossSkillManager.current_skill == BossSkillManager.BossSkill.SANDSTORM and not BossSkillManager.skill_suppressed:
+		for idx in _selected_indices:
+			if not BossSkillManager.is_card_visible(idx):
+				if BossSkillManager.reveal_face_down_card(DeckManager.hand[idx]):
+					RoundManager.discards_left -= 1
+					_selected_indices.clear()
+					_rebuild_hand(); _update_ui(); GameState.save_state()
+					_show_tip("消耗1次换牌，已吹散一张风沙", GameTheme.COLOR_GOLD)
+					return
 	RoundManager.discard_cards(_selected_indices.duplicate())
-	# v3.1: 换牌后重新执行敌方技能（重新随机锁定/遮挡）
-	BossSkillManager.execute_skill_on_hand(DeckManager.hand)
 	_rebuild_hand(); _update_ui(); GameState.save_state()
 
 # ════════════════════════════════════════════════════════════════
@@ -753,6 +862,8 @@ func _on_discard_pressed():
 # ════════════════════════════════════════════════════════════════
 func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 	# ── 牌桌中间展示逐步计算过程 ──
+	monster_avatar.visible = false
+	monster_title.visible = false
 	for child in calc_steps_list.get_children(): child.queue_free()
 	for child in played_area.get_children(): child.queue_free()
 	for card in played_cards:
@@ -799,7 +910,14 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			calc_steps_list.add_child(elite_row)
 			_fade_in_row(elite_row)
 
-		elif step_type == "consumable" or step_type == "remain_boost":
+		elif step_type == "boss_block":
+			running_score = 0
+			formula_label.text = "🔥 牌型未穿透三昧真火，伤害归零"
+			var block_row = _make_step_label("🔥", "三昧真火", "牌型受阻", "→ 0", GameTheme.COLOR_CRIT)
+			calc_steps_list.add_child(block_row)
+			_fade_in_row(block_row)
+
+		elif step_type == "consumable":
 			var s_chips = step.get("chips", chips)
 			var s_mult = step.get("mult", base_mult)
 			running_score = int(s_chips * s_mult)
@@ -810,8 +928,7 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 			if delta.get("mult_factor",1) != 1: parts.append("倍率×%.1f" % delta.get("mult_factor",1))
 			var desc = "  ".join(parts) if parts else ""
 			formula_label.text = "🧪 %s %s → %d" % [step.get("label",""), desc, running_score]
-			var icon = "🧪" if step_type == "consumable" else "🃏"
-			var cons_row = _make_step_label(icon, step.get("label","道具"), desc, "→ %d" % running_score, GameTheme.COLOR_ACCENT)
+			var cons_row = _make_step_label("🧪", step.get("label","道具"), desc, "→ %d" % running_score, GameTheme.COLOR_ACCENT)
 			calc_steps_list.add_child(cons_row)
 			_fade_in_row(cons_row)
 			_apply_params_to_labels(s_mult, step.get("crit_rate", 0.05), step.get("crit_mult", 2.0))
@@ -838,7 +955,13 @@ func _show_calc_animation(result: Dictionary, played_cards: Array = []):
 
 	# ── Phase 3: 最终得分 ──
 	await get_tree().create_timer(0.5).timeout
-	if is_crit:
+	if result.get("blocked_by_boss", false):
+		crit_banner.text = "🔥 三昧真火吞噬伤害"
+		crit_banner.visible = true
+		score_burst_label.text = "+0"
+		score_burst_label.add_theme_color_override("font_color", GameTheme.COLOR_CRIT)
+		formula_label.text = "只有指定牌型可以伤到红孩儿"
+	elif is_crit:
 		# 先显示暴击前分数（灰色小字）
 		score_burst_label.text = "%d" % running_score
 		score_burst_label.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
@@ -927,6 +1050,8 @@ func _reset_inline_calc():
 	crit_banner.visible = false
 	crit_banner.modulate.a = 1.0
 	calc_close_hint.visible = false
+	monster_avatar.visible = true
+	monster_title.visible = true
 
 func _fade_score_burst():
 	if score_burst_label.text == "":
@@ -980,9 +1105,6 @@ func _add_calc_step_row(step: Dictionary, base_chips: int):
 			result_lbl.text = "→ ×%.2f" % step.get("mult", 1.0)
 			result_lbl.add_theme_color_override("font_color", Color(0.90, 1.00, 0.40, 1))
 		"consumable":
-			row.queue_free()
-			return
-		"remain_boost":
 			row.queue_free()
 			return
 

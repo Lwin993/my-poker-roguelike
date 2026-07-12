@@ -47,6 +47,8 @@ const ELITE_PASSIVE_DESCRIPTIONS = {
 	ElitePassive.FIRST_PLAY_NERF: "每回合第1次出牌伤害-25%",
 }
 
+const HAND_RANK_NAMES = ["高牌", "一对", "两对", "三条", "顺子", "同花", "葫芦", "四条", "同花顺"]
+
 # 克制道具ID → 克制的技能（仅大妖）
 const COUNTER_ITEMS = {
 	"mirror_reveal": BossSkill.PHANTOM_CARDS,
@@ -100,6 +102,13 @@ func is_hand_rank_allowed(hand_rank: int) -> bool:
 		return true
 	return hand_rank in allowed_hand_ranks
 
+func get_allowed_hand_names() -> Array:
+	var names: Array = []
+	for rank in allowed_hand_ranks:
+		if rank >= 0 and rank < HAND_RANK_NAMES.size():
+			names.append(HAND_RANK_NAMES[rank])
+	return names
+
 # 检查当前出牌是否被精英怪削弱（火灵童首打-25%）
 # v3.1: 克制道具也压制精英被动
 func is_first_play_nerfed() -> bool:
@@ -139,19 +148,19 @@ func execute_skill_on_hand(hand: Array):
 	if current_skill != BossSkill.NONE and not skill_suppressed:
 		match current_skill:
 			BossSkill.PHANTOM_CARDS:
-				_mark_phantom_cards(hand)
+				if phantom_cards.is_empty(): _mark_phantom_cards(hand)
 			BossSkill.SANDSTORM:
-				_mark_face_down_cards(hand)
+				if face_down_cards.is_empty(): _mark_face_down_cards(hand)
 			BossSkill.HOLY_FIRE:
-				_select_allowed_hand_ranks()
+				if allowed_hand_ranks.is_empty(): _select_allowed_hand_ranks()
 
 	# 精英怪被动（v3.1: 克制道具压制后不再重新标记）
 	if current_elite_passive != ElitePassive.NONE and not skill_suppressed:
 		match current_elite_passive:
 			ElitePassive.LOCK_CARD:
-				_mark_elite_locked_card(hand)
+				if elite_locked_cards.is_empty(): _mark_elite_locked_card(hand)
 			ElitePassive.FACE_DOWN:
-				_mark_elite_face_down_card(hand)
+				if elite_face_down_cards.is_empty(): _mark_elite_face_down_card(hand)
 			ElitePassive.FIRST_PLAY_NERF:
 				pass  # 首打削弱在apply_skill时已标记，换牌不重置
 
@@ -164,6 +173,15 @@ func suppress_skill():
 # v3.1: 克制道具仅生效一次出牌，出牌后恢复
 func unsuppress_skill():
 	skill_suppressed = false
+
+func reveal_face_down_card(card) -> bool:
+	if current_skill != BossSkill.SANDSTORM or skill_suppressed:
+		return false
+	var idx = face_down_cards.find(card)
+	if idx == -1:
+		return false
+	face_down_cards.remove_at(idx)
+	return true
 
 # 检查消耗品是否克制当前大妖技能
 func does_consumable_counter_skill(consumable_id: String) -> bool:
@@ -187,16 +205,20 @@ func reset():
 # ---- 内部方法 ----
 
 func _mark_phantom_cards(hand: Array):
+	if hand.is_empty(): return
 	# 随机标记2张牌为幻影牌（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	phantom_cards = [hand[indices[0]], hand[indices[1]]]
+	phantom_cards.clear()
+	for i in range(mini(2, hand.size())): phantom_cards.append(hand[indices[i]])
 
 func _mark_face_down_cards(hand: Array):
+	if hand.is_empty(): return
 	# 随机标记3张牌背面朝上（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
-	face_down_cards = [hand[indices[0]], hand[indices[1]], hand[indices[2]]]
+	face_down_cards.clear()
+	for i in range(mini(3, hand.size())): face_down_cards.append(hand[indices[i]])
 
 func _select_allowed_hand_ranks():
 	# 从9种牌型中随机选2种
@@ -205,12 +227,14 @@ func _select_allowed_hand_ranks():
 	allowed_hand_ranks = all_ranks.slice(0, 2)
 
 func _mark_elite_locked_card(hand: Array):
+	if hand.is_empty(): return
 	# 骷髅将：随机1张手牌不可选中（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()
 	elite_locked_cards = [hand[indices[0]]]
 
 func _mark_elite_face_down_card(hand: Array):
+	if hand.is_empty(): return
 	# 小旋风：随机1张手牌背面朝上（存储卡牌对象，排序安全）
 	var indices = range(hand.size())
 	indices.shuffle()

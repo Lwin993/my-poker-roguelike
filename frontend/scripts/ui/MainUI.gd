@@ -22,6 +22,9 @@ func _ready():
 	$MainMenu/Center/VBox/StartButton.pressed.connect(_on_start_pressed)
 	$MainMenu/Center/VBox/RulesButton.pressed.connect(_on_rules_pressed)
 	$MainMenu/Center/VBox/RankButton.pressed.connect(_on_rank_pressed)
+	_style_button($MainMenu/Center/VBox/StartButton, GameTheme.COLOR_GOLD)
+	_style_button($MainMenu/Center/VBox/RulesButton, GameTheme.COLOR_BLUE_CHIP)
+	_style_button($MainMenu/Center/VBox/RankButton, GameTheme.COLOR_JOKER)
 
 	# 预加载子场景
 	_load_sub_scenes()
@@ -34,6 +37,12 @@ func _ready():
 
 	# 首次进入主菜单时查询外部金币余额
 	GameAPI.get_wallet_balance()
+
+func _style_button(btn: Button, color: Color):
+	btn.add_theme_stylebox_override("normal", GameTheme.get_button_style(color))
+	btn.add_theme_stylebox_override("hover", GameTheme.get_button_hover_style(color))
+	btn.add_theme_stylebox_override("pressed", GameTheme.get_button_pressed_style(color))
+	btn.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_MAIN)
 
 func _load_sub_scenes():
 	# 动态加载子场景内容

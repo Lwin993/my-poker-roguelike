@@ -6,3 +6,9 @@ func get_score_modifiers() -> Dictionary:
 
 func is_consumed() -> bool:
 	return true
+
+func get_use_timing() -> String:
+	return "instant"
+
+func apply_special_effect():
+	RoundManager.discards_left += 2

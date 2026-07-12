@@ -6,3 +6,7 @@ func get_score_modifiers() -> Dictionary:
 	return {}
 func is_consumed() -> bool:
 	return true
+func can_use_now() -> bool:
+	return RoundManager.current_blind == 2
+func get_unavailable_reason() -> String:
+	return "斩妖剑只能在大妖战使用"

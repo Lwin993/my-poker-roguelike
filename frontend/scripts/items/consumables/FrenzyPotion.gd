@@ -7,3 +7,9 @@ func get_score_modifiers() -> Dictionary:
 
 func is_consumed() -> bool:
 	return true
+
+func is_round_wide() -> bool:
+	return true
+
+func get_use_timing() -> String:
+	return "round"

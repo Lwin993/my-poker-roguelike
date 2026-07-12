@@ -1,8 +1,8 @@
-# FreezeSpell.gd — 定身术：出牌+1
+# SeventyTwo.gd — 七十二变：随机复制一个法宝 Lv1 效果（永久）
 extends "res://scripts/items/ItemEffect.gd"
 
 func get_score_modifiers() -> Dictionary:
-	return {"extra_plays": 1}
+	return {}
 
 func is_consumed() -> bool:
 	return true
@@ -10,5 +10,5 @@ func is_consumed() -> bool:
 func get_use_timing() -> String:
 	return "instant"
 
-func apply_special_effect():
-	RoundManager.plays_left += 1
+func apply_special_effect() -> String:
+	return ItemManager.add_random_artifact_copy()

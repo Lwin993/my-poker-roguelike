@@ -34,7 +34,7 @@ custom_minimum_size = Vector2(0, 46)
 [node name="ShopTitle" type="Label" parent="VBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "🛒  商店"
+text = "☁  云端仙铺"
 theme_override_font_sizes/font_size = 24
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
@@ -62,10 +62,18 @@ text = "本期商品"
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
-[node name="ShopGrid" type="HBoxContainer" parent="VBox"]
+[node name="ShopScroll" type="ScrollContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 184)
-theme_override_constants/separation = 10
+custom_minimum_size = Vector2(0, 220)
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="ShopGrid" type="GridContainer" parent="VBox/ShopScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 2
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
 
 [node name="Divider2" type="HSeparator" parent="VBox"]
 layout_mode = 2
@@ -76,14 +84,16 @@ text = "已持有道具"
 theme_override_font_sizes/font_size = 13
 theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
-[node name="OwnedPanel" type="HBoxContainer" parent="VBox"]
+[node name="OwnedScroll" type="ScrollContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 92)
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(0, 86)
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
 
-[node name="Spacer" type="Control" parent="VBox"]
+[node name="OwnedPanel" type="HBoxContainer" parent="VBox/OwnedScroll"]
 layout_mode = 2
-size_flags_vertical = 3
+custom_minimum_size = Vector2(0, 94)
+theme_override_constants/separation = 8
 
 [node name="BottomRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2

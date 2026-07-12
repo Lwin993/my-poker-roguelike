@@ -8,10 +8,10 @@ var _reward_configs: Array = []
 # 默认奖品档位（本地 Mock）
 var reward_tiers: Array = [
 	{"min_score": 0,     "max_score": 999,   "reward_name": "参与奖",     "reward_type": "digital"},
-	{"min_score": 1000,  "max_score": 2999,  "reward_name": "雪碧",       "reward_type": "drink"},
-	{"min_score": 3000,  "max_score": 5999,  "reward_name": "奶茶",       "reward_type": "drink"},
-	{"min_score": 6000,  "max_score": 9999,  "reward_name": "奶茶升级券", "reward_type": "coupon"},
-	{"min_score": 10000, "max_score": -1,    "reward_name": "稀有奖品",   "reward_type": "rare"},
+	{"min_score": 1000,  "max_score": 4999,  "reward_name": "雪碧",       "reward_type": "drink"},
+	{"min_score": 5000,  "max_score": 14999, "reward_name": "奶茶",       "reward_type": "drink"},
+	{"min_score": 15000, "max_score": 39999, "reward_name": "奶茶升级券", "reward_type": "coupon"},
+	{"min_score": 40000, "max_score": -1,    "reward_name": "稀有奖品",   "reward_type": "rare"},
 ]
 
 func load_from_server(data: Dictionary):

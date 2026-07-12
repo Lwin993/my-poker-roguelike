@@ -60,17 +60,20 @@ public class ScoreCalculator {
             }
         }
 
-        // 5. Consumable modifiers
+        // 5. Consumable additive modifiers. Multipliers are deferred so item
+        // selection order cannot change the result.
+        double consumableMultFactor = 1.0;
         for (String consumableId : consumables) {
             ItemModifier mod = ItemModifierRegistry.getModifier(consumableId);
             if (mod != null) {
                 chips += mod.applyChipAdd(chips, 0, handResult);
                 mult += mod.applyMultAdd(0);
-                mult *= mod.applyMultFactor(0);
+                consumableMultFactor *= mod.applyMultFactor(0);
                 critRate += mod.getCritRateAdd(0);
                 critMult += mod.getCritMultAdd(0);
             }
         }
+		mult *= consumableMultFactor;
 
         // 6. Crit determination
         boolean isCrit = rng.nextDouble() < Math.min(critRate, 1.0);

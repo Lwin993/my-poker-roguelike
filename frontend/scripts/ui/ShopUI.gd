@@ -3,14 +3,13 @@ extends Control
 
 @onready var coins_label     = $VBox/HeaderRow/CoinsBadge/CoinsLabel
 @onready var sub_title       = $VBox/SubTitle
-@onready var shop_grid       = $VBox/ShopGrid
-@onready var owned_panel     = $VBox/OwnedPanel
+@onready var shop_grid       = $VBox/ShopScroll/ShopGrid
+@onready var owned_panel     = $VBox/OwnedScroll/OwnedPanel
 @onready var refresh_button  = $VBox/BottomRow/RefreshButton
 @onready var continue_button = $VBox/BottomRow/ContinueButton
 
 var _refresh_count: int = 0
 var _has_free_refresh: bool = false
-var _rare_boost: bool = false
 var _current_shop_node: int = 0
 var _pending_shop_items: Array = []  # items from API, waiting to render
 var _current_shop_items: Array = []  # v3.1: cached for re-render after buy
@@ -40,7 +39,6 @@ func refresh_shop():
 	_refresh_count    = 0
 	_sold_item_ids.clear()  # v3.1: 新商店清空售罄记录
 	_has_free_refresh = _check_free_refresh()
-	_rare_boost       = _check_rare_boost()
 	_update_header()
 	_load_shop_items()
 	_rebuild_owned_panel()
@@ -51,29 +49,19 @@ func _check_free_refresh() -> bool:
 		if c.resource_data.get("id","") == "refresh_ticket": return true
 	return false
 
-func _check_rare_boost() -> bool:
-	for c in ItemManager.consumables:
-		if c.resource_data.get("id","") == "lucky_compass": return true
-	return false
-
 func _update_header():
-	var r = RoundManager.current_round + 1
-	var b = RoundManager.current_blind
-	# v3.1: 用怪物名替代"小盲/大盲/Boss"
-	var bn = RoundManager.get_current_blind_name() if b >= 0 else "—"
-	sub_title.text = "第 %d 轮 · %s 通关！ 获得 💎%d" % [
-		r, bn, RoundManager.coin_rewards[RoundManager.current_round][clamp(b-1,0,2)]
-	]
+	var r = maxi(0, RoundManager.last_cleared_round)
+	var b = maxi(0, RoundManager.last_cleared_blind)
+	var monster = RoundManager.MONSTER_NAMES[r][b]
+	sub_title.text = "第%d轮 · %s 已降伏  +%d 灵石" % [r + 1, monster, RoundManager.last_cleared_reward]
 	coins_label.text = "💎  %d" % RoundManager.game_coins
+	continue_button.text = "领取战果  ▶" if RoundManager._pending_final_result else "继续降妖  ▶"
 
 # ---- 商品列表 ----
 func _load_shop_items():
 	for c in shop_grid.get_children(): c.queue_free()
 
-	_current_shop_node = clamp(
-		RoundManager.current_round * 2 + (RoundManager.current_blind - 1 if RoundManager.current_blind > 0 else 0),
-		0, 5
-	)
+	_current_shop_node = clampi(RoundManager.last_cleared_round * 3 + RoundManager.last_cleared_blind, 0, 8)
 	# Async: request from backend API
 	GameAPI.get_shop_items(_current_shop_node, _refresh_count)
 
@@ -98,7 +86,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	else:                border_color = GameTheme.COLOR_ACCENT
 
 	var card = PanelContainer.new()
-	card.custom_minimum_size = Vector2(132, 176)
+	card.custom_minimum_size = Vector2(148, 188)
 	card.tooltip_text = "%s\n%s" % [name_str, desc_str]
 	var cs = StyleBoxFlat.new()
 	cs.bg_color = GameTheme.COLOR_BG_PANEL.lerp(border_color, 0.16); cs.border_color = border_color
@@ -113,7 +101,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	card.add_child(vbox)
 
 	var icon_lbl = Label.new()
-	icon_lbl.text = "🎭" if item_type == 0 else ("✨" if rarity == 1 else "🧪")
+	icon_lbl.text = ItemManager.get_item_icon(item_data)
 	icon_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	icon_lbl.add_theme_font_size_override("font_size", 24)
 	icon_lbl.tooltip_text = card.tooltip_text
@@ -127,6 +115,16 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 	name_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	name_lbl.tooltip_text = card.tooltip_text
 	vbox.add_child(name_lbl)
+
+	var type_lbl = Label.new()
+	type_lbl.text = ItemManager.get_item_type_label(item_data)
+	if item_type != 0:
+		var preview_effect = ItemManager.create_item_effect(item_data)
+		type_lbl.text += " · %s" % preview_effect.get_use_timing_label()
+	type_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	type_lbl.add_theme_font_size_override("font_size", 10)
+	type_lbl.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
+	vbox.add_child(type_lbl)
 
 	var desc_lbl = Label.new()
 	desc_lbl.text = desc_str
@@ -152,7 +150,7 @@ func _make_shop_card(item_data: Dictionary) -> Control:
 		buy_btn.tooltip_text = "已经拥有该法宝"
 	elif consumable_full:
 		buy_btn.text = "道具已满"; buy_btn.disabled = true
-		buy_btn.tooltip_text = "最多携带 %d 张道具牌" % ItemManager.get_consumable_limit()
+		buy_btn.tooltip_text = "道具携带数量已达上限"
 	else:
 		buy_btn.text = "💎%d 购买" % price; buy_btn.disabled = not can_afford
 		buy_btn.tooltip_text = card.tooltip_text if can_afford else "灵石不足"
@@ -206,7 +204,7 @@ func _rebuild_owned_panel():
 	# 冲分道具 — 静态标签（战斗时使用）
 	if not ItemManager.consumables.is_empty():
 		var cap_lbl = Label.new()
-		cap_lbl.text = "%d/%d" % [ItemManager.consumables.size(), ItemManager.get_consumable_limit()]
+		cap_lbl.text = "道具 %d" % ItemManager.consumables.size()
 		cap_lbl.add_theme_font_size_override("font_size", 13)
 		cap_lbl.add_theme_color_override("font_color", GameTheme.COLOR_TEXT_DIM)
 		cap_lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
@@ -242,7 +240,7 @@ func _make_joker_card(joker) -> Control:
 	vb.add_child(row)
 
 	var icon = Label.new()
-	icon.text = "🎭"; icon.add_theme_font_size_override("font_size", 18)
+	icon.text = ItemManager.get_item_icon(joker); icon.add_theme_font_size_override("font_size", 18)
 	row.add_child(icon)
 
 	var lv_lbl = Label.new()
@@ -289,7 +287,7 @@ func _make_joker_card(joker) -> Control:
 func _make_cons_badge(cons, color: Color) -> Control:
 	var lbl = Label.new()
 	lbl.custom_minimum_size = Vector2(86, 76)
-	lbl.text = "🧪\n%s\n(战斗用)" % cons.resource_data.get("display_name","?")
+	lbl.text = "%s\n%s\n%s" % [ItemManager.get_item_icon(cons), cons.resource_data.get("display_name","?"), cons.get_use_timing_label()]
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment   = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_size_override("font_size", 12)
@@ -322,8 +320,7 @@ func _update_refresh_button():
 	refresh_button.disabled = (not _has_free_refresh) and RoundManager.game_coins < cost
 
 func _get_refresh_cost() -> int:
-	if _refresh_count == 0: return 0
-	return 5 + (_refresh_count - 1) * 5
+	return 5 + _refresh_count * 5
 
 func _on_refresh_pressed():
 	var cost = _get_refresh_cost()
@@ -334,7 +331,6 @@ func _on_refresh_pressed():
 	else:
 		return
 	_refresh_count += 1
-	_rare_boost = _check_rare_boost()
 	# Async: reload shop from backend with updated refresh_count
 	GameAPI.get_shop_items(_current_shop_node, _refresh_count)
 	_update_refresh_button()
@@ -353,6 +349,11 @@ func _on_buy_completed(data: Dictionary):
 	GameState.save_state()
 
 func _on_continue_pressed():
+	if RoundManager._pending_final_result:
+		RoundManager._pending_final_result = false
+		GameAPI.submit_result()
+		RoundManager._set_phase(RoundManager.Phase.FINAL_RESULT)
+		return
 	# v3.1: 大妖通关后，商店关闭时推进到下一轮
 	if RoundManager._pending_next_round:
 		RoundManager._pending_next_round = false

@@ -7,3 +7,11 @@ func get_score_modifiers() -> Dictionary:
 
 func is_consumed() -> bool:
 	return true
+func is_round_wide() -> bool:
+	return true
+func get_use_timing() -> String:
+	return "round"
+func can_use_now() -> bool:
+	return BossSkillManager.does_consumable_counter_skill("holy_dew")
+func get_unavailable_reason() -> String:
+	return "净瓶甘露只能在红孩儿战使用"

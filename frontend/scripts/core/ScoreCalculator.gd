@@ -118,41 +118,7 @@ func _build_steps(
 			"delta":     {"special_mult": 0.75},
 		})
 
-	# Step 1~M：消耗品/道具直接修改参数
-	for item in active_consumables:
-		var delta = item.get_score_modifiers()
-		var ca    = delta.get("chip_add",       0.0)
-		var ma    = delta.get("mult_add",       0.0)
-		var mf    = delta.get("mult_factor",    1.0)
-		var dcr   = delta.get("crit_rate_add",  0.0)
-		var dcm   = delta.get("crit_mult_add",  0.0)
-
-		chips     += ca
-		mult      += ma
-		mult      *= mf
-		crit_rate += dcr
-		crit_mult += dcm
-
-		steps.append({
-			"type":      "consumable",
-			"label":     item.resource_data.get("display_name", "?"),
-			"chips":     chips,
-			"mult":      mult,
-			"crit_rate": crit_rate,
-			"crit_mult": crit_mult,
-			"partial":   int(chips * mult),
-			"delta":     {
-				"chip_add":      ca,
-				"mult_add":      ma,
-				"mult_factor":   mf,
-				"crit_rate_add": dcr,
-				"crit_mult_add": dcm,
-			},
-		})
-
-	# v3.1: 余牌加持已移除
-
-	# Step M+1~N：每张法宝按顺序触发
+	# Step 1~M：法宝先提供固定伤害/倍率加成。
 	var sm_prob = -1.0  # 预览时显示概率
 	for js in joker_states:
 		var delta = js.get_passive_modifiers(hand_result) if not is_preview else (
@@ -189,6 +155,43 @@ func _build_steps(
 				"crit_mult_add": dcm,
 				"special_mult":  dsm,
 			},
+		})
+
+	# Step M+1~N：道具先结算所有“+伤害/+倍率”，最后统一结算“×倍率”。
+	# 这样选择道具的先后顺序不会改变结果，且严格符合 (基础倍率+倍率加成)×特殊乘数。
+	var factor_items: Array = []
+	for item in active_consumables:
+		var delta = item.get_score_modifiers()
+		var ca    = delta.get("chip_add",       0.0)
+		var ma    = delta.get("mult_add",       0.0)
+		var mf    = delta.get("mult_factor",    1.0)
+		var dcr   = delta.get("crit_rate_add",  0.0)
+		var dcm   = delta.get("crit_mult_add",  0.0)
+		chips     += ca
+		mult      += ma
+		crit_rate += dcr
+		crit_mult += dcm
+		if mf != 1.0:
+			factor_items.append({"item": item, "factor": mf})
+		if ca != 0.0 or ma != 0.0 or dcr != 0.0 or dcm != 0.0:
+			steps.append({
+				"type": "consumable", "label": item.resource_data.get("display_name", "?"),
+				"chips": chips, "mult": mult, "crit_rate": crit_rate, "crit_mult": crit_mult,
+				"partial": int(chips * mult),
+				"delta": {"chip_add": ca, "mult_add": ma, "mult_factor": 1.0,
+					"crit_rate_add": dcr, "crit_mult_add": dcm},
+			})
+
+	for entry in factor_items:
+		var factor = float(entry.factor)
+		mult *= factor
+		var factor_item = entry.item
+		steps.append({
+			"type": "consumable", "label": factor_item.resource_data.get("display_name", "?"),
+			"chips": chips, "mult": mult, "crit_rate": crit_rate, "crit_mult": crit_mult,
+			"partial": int(chips * mult),
+			"delta": {"chip_add": 0.0, "mult_add": 0.0, "mult_factor": factor,
+				"crit_rate_add": 0.0, "crit_mult_add": 0.0},
 		})
 
 	return {

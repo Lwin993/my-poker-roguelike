@@ -7,3 +7,11 @@ func get_score_modifiers() -> Dictionary:
 
 func is_consumed() -> bool:
 	return true
+func is_round_wide() -> bool:
+	return true
+func get_use_timing() -> String:
+	return "round"
+func can_use_now() -> bool:
+	return BossSkillManager.does_consumable_counter_skill("wind_calmer")
+func get_unavailable_reason() -> String:
+	return "定风丹只能在黄风怪战使用"

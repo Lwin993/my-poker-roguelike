@@ -114,7 +114,6 @@ func _build_tier_list():
 func _on_play_again():
 	GameState.clear_save()
 	GameAPI.start_game()
-	RoundManager.start_new_game()
 
 func _on_menu():
 	GameState.clear_save()

@@ -29,7 +29,8 @@ public class ItemModifierRegistry {
         register("boss_burst", new BossBurstModifier());         // 斩妖剑: mult×3
         register("crit_potion", new CritPotionModifier());       // 暴击药水: critMult+2
         register("nine_elixir", new NineElixirModifier());       // 九转金丹: chips+25
-        register("clone_spell", new CloneSpellModifier());       // 分身术: mult×2
+        register("clone_spell", new CloneSpellModifier());       // 分身术: mult+4
+        register("quint_crit", new QuintCritModifier());         // 五连暴击: 50%暴击率
         register("mirror_reveal", new BossSuppressModifier());   // 照妖镜: 克制白骨精
         register("wind_calmer", new BossSuppressModifier());     // 定风丹: 克制黄风怪
         register("holy_dew", new BossSuppressModifier());        // 净瓶甘露: 克制红孩儿
@@ -136,11 +137,19 @@ class NineElixirModifier implements ItemModifier {
     }
 }
 
-/** 分身术 — 倍率×2 */
+/** 分身术 — 当次出牌倍率+4 */
 class CloneSpellModifier implements ItemModifier {
     @Override
-    public double applyMultFactor(int level) {
-        return 2.0;
+    public double applyMultAdd(int level) {
+        return 4.0;
+    }
+}
+
+/** 五连暴击 — 基础5% + 45% = 50% */
+class QuintCritModifier implements ItemModifier {
+    @Override
+    public double getCritRateAdd(int level) {
+        return 0.45;
     }
 }
 

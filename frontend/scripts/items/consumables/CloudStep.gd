@@ -9,7 +9,10 @@ func apply_special_effect():
 	DeckManager.draw_to_hand_limit()
 
 func is_consumed() -> bool:
-	return false  # 回合持续
+	return true
 
 func is_round_wide() -> bool:
 	return true
+
+func get_use_timing() -> String:
+	return "instant"

@@ -38,6 +38,27 @@ func is_round_wide() -> bool:
 func is_consumed() -> bool:
 	return false
 
+# 使用时机：
+#   next_play — 选择后在下一次出牌结算
+#   instant   — 点击后立即生效并消耗
+#   round     — 点击后在当前怪物战持续生效
+#   shop      — 仅能在仙铺使用
+func get_use_timing() -> String:
+	return "next_play"
+
+func get_use_timing_label() -> String:
+	match get_use_timing():
+		"instant": return "立即生效"
+		"round":   return "当前战斗持续"
+		"shop":    return "仙铺使用"
+	return "下次出牌"
+
+func can_use_now() -> bool:
+	return true
+
+func get_unavailable_reason() -> String:
+	return ""
+
 # 升级费用
 func get_upgrade_cost() -> int:
 	return -1

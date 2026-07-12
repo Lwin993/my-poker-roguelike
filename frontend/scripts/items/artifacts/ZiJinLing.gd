@@ -21,19 +21,19 @@ const HAND_NAMES = {
 
 func get_passive_modifiers(hand_result: Dictionary) -> Dictionary:
 	var rank = hand_result.get("rank", -1)
-	if rank == _last_hand_rank:
+	if rank == _last_hand_rank and _last_hand_rank != -1:
 		_consecutive += 1
 	else:
 		_consecutive = 1
 	_last_hand_rank = rank
+	return {"mult_add": get_bonus_per_stack() * maxi(0, _consecutive - 1)}
 
-	var bonus: float
-	match level:
-		1: bonus = 4.0 * _consecutive
-		2: bonus = 6.0 * _consecutive
-		3: bonus = 9.0 * _consecutive
-		_: bonus = 0.0
-	return {"mult_add": bonus}
+# UI 预览不能推进连锁状态；仅展示“如果现在出牌”的倍率。
+func get_preview_modifiers(hand_result: Dictionary) -> Dictionary:
+	var rank = hand_result.get("rank", -1)
+	if rank == -1: return {"mult_add": 0.0}
+	var next_count = _consecutive + 1 if rank == _last_hand_rank else 1
+	return {"mult_add": get_bonus_per_stack() * maxi(0, next_count - 1)}
 
 func get_bonus_per_stack() -> float:
 	match level:
@@ -43,7 +43,7 @@ func get_bonus_per_stack() -> float:
 	return 0.0
 
 func get_current_bonus() -> float:
-	return get_bonus_per_stack() * _consecutive
+	return get_bonus_per_stack() * maxi(0, _consecutive - 1)
 
 func get_chain_info() -> Dictionary:
 	return {
