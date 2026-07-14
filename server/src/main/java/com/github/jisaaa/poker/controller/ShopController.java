@@ -40,6 +40,16 @@ public class ShopController {
         return ApiResult.ok(shopService.buy(userId, sessionId, shopNode, itemId));
     }
 
+    @PostMapping("/sell")
+    public ApiResult<ShopService.SellItemResponse> sell(
+            @RequestHeader("Authorization") String auth,
+            @RequestBody Map<String, Object> body) {
+        String userId = extractUserId(auth);
+        Long sessionId = ((Number) body.get("session_id")).longValue();
+        String itemId = (String) body.get("item_id");
+        return ApiResult.ok(shopService.sell(userId, sessionId, itemId));
+    }
+
     private String extractUserId(String auth) {
         if (auth != null && auth.startsWith("Bearer ")) {
             String uid = jwtConfig.getUserIdFromToken(auth.substring(7));

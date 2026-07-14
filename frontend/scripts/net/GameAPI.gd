@@ -11,6 +11,7 @@ signal game_started(data: Dictionary)
 signal result_submitted(data: Dictionary)
 signal shop_items_loaded(items: Array)
 signal buy_completed(data: Dictionary)
+signal sell_completed(data: Dictionary)
 signal revive_prepared(data: Dictionary)
 signal revive_completed(data: Dictionary)
 signal wallet_balance_loaded(balance: int)
@@ -140,6 +141,16 @@ func buy_item(item_id: String, shop_node: int) -> void:
 	_http_post("/api/shop/buy", body, func(response: Dictionary):
 		var data = response.get("data", {})
 		buy_completed.emit(data)
+	)
+
+func sell_item(item_id: String) -> void:
+	var body = {
+		"session_id": session_id,
+		"item_id": item_id,
+	}
+	_http_post("/api/shop/sell", body, func(response: Dictionary):
+		var data = response.get("data", {})
+		sell_completed.emit(data)
 	)
 
 # ════════════════════════════════════════════════════════════════

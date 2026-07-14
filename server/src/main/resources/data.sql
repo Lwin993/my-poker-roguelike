@@ -19,10 +19,10 @@ INSERT OR REPLACE INTO reward_tier (min_score, max_score, reward_name, reward_ty
 (40000, -1,    '稀有奖品',   'rare',    100);
 
 -- v3.1: 4大法宝 + 道具配置
-DELETE FROM item_config WHERE item_id IN ('remain_boost', 'extra_play');
+DELETE FROM item_config WHERE item_id IN ('remain_boost', 'extra_play', 'artifact_jgb');
 
 INSERT OR REPLACE INTO item_config (item_id, config_data) VALUES
-('artifact_jgb', '{"display_name":"金箍棒","description":"固定增加倍率，稳定增伤","price":35,"rarity":0,"item_type":0,"shop_weights":[30,28,25,22,18,15,12,9,6],"upgrade_costs":[40,80],"effect_class":"JinGuBang","level_params":[{"mult_add":4},{"mult_add":7},{"mult_add":11}]}'),
+('artifact_bjs', '{"display_name":"芭蕉扇","description":"每次出牌掀起罡风，固定增加倍率","price":35,"rarity":0,"item_type":0,"shop_weights":[30,28,25,22,18,15,12,9,6],"upgrade_costs":[40,80],"effect_class":"BaJiaoShan","level_params":[{"mult_add":4},{"mult_add":7},{"mult_add":11}]}'),
 ('artifact_zjl', '{"display_name":"紫金铃","description":"连续打出同牌型，倍率逐次递增","price":45,"rarity":0,"item_type":0,"shop_weights":[22,24,25,24,22,20,18,15,12],"upgrade_costs":[50,100],"effect_class":"ZiJinLing","level_params":[{"mult_per_stack":4},{"mult_per_stack":6},{"mult_per_stack":9}]}'),
 ('artifact_rsg', '{"display_name":"人参果","description":"低概率触发极高特殊倍率","price":55,"rarity":0,"item_type":0,"shop_weights":[10,12,14,16,18,18,16,14,12],"upgrade_costs":[60,120],"effect_class":"RenShenGuo","level_params":[{"boom_prob":0.05,"boom_mult":10},{"boom_prob":0.08,"boom_mult":15},{"boom_prob":0.12,"boom_mult":25}]}'),
 ('artifact_hyjj', '{"display_name":"火眼金睛","description":"每战随机花色，匹配牌增加伤害","price":40,"rarity":0,"item_type":0,"shop_weights":[22,22,22,20,18,16,14,12,10],"upgrade_costs":[45,90],"effect_class":"HuoYanJinJing","level_params":[{"chip_per_suit":4},{"chip_per_suit":7},{"chip_per_suit":12}]}'),
@@ -40,7 +40,7 @@ INSERT OR REPLACE INTO item_config (item_id, config_data) VALUES
 ('holy_dew', '{"display_name":"净瓶甘露","description":"红孩儿战熄灭真火，持续整场战斗","price":20,"rarity":1,"item_type":1,"shop_weights":[2,2,3,3,5,6,16,12,10],"effect_class":"HolyDew","level_params":[]}'),
 ('quint_crit', '{"display_name":"五连暴击","description":"当前战斗暴击率提升至50%","price":30,"rarity":1,"item_type":1,"shop_weights":[6,7,8,9,10,11,12,12,10],"effect_class":"QuintCrit","level_params":[{"crit_rate_add":0.45}]}'),
 ('cloud_step', '{"display_name":"筋斗云","description":"当前战斗手牌上限8→9张","price":25,"rarity":1,"item_type":1,"shop_weights":[7,8,9,10,10,10,10,9,8],"effect_class":"CloudStep","level_params":[{"hand_size_add":1}]}'),
-('seventy_two', '{"display_name":"七十二变","description":"随机复制1个法宝Lv1效果，永久生效","price":35,"rarity":1,"item_type":1,"shop_weights":[4,5,6,7,8,9,10,10,8],"effect_class":"SeventyTwo","level_params":[]}');
+('seventy_two', '{"display_name":"七十二变","description":"随机复制1个临时法宝Lv1效果，当前回合结束后失效","price":35,"rarity":1,"item_type":1,"shop_weights":[4,5,6,7,8,9,10,10,8],"effect_class":"SeventyTwo","level_params":[]}');
 
 -- Dual currency config
 INSERT OR IGNORE INTO game_config (config_key, config_value) VALUES

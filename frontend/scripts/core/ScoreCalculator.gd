@@ -66,6 +66,15 @@ func preview_params(
 	var result = _build_steps(hand_result, joker_states, active_consumables, remaining_hand, true)
 	return result.get("params", {"chips": 0, "mult": 1.0, "crit_rate": 0.05, "crit_mult": 2.0, "special_mult": 1.0})
 
+# 完整预览明细 — 供金箍棒攻击信息界面展示，不触发随机效果或推进法宝状态。
+func preview_breakdown(
+	hand_result: Dictionary,
+	joker_states: Array,
+	active_consumables: Array,
+	remaining_hand: Array
+) -> Dictionary:
+	return _build_steps(hand_result, joker_states, active_consumables, remaining_hand, true)
+
 # ----------------------------------------------------------------
 # 逐步构建 — 返回 { params: {...}, steps: [...] }
 # v3.1: chips = baseChips + cardChips + chipAdd

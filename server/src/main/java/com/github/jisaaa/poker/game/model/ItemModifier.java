@@ -23,7 +23,7 @@ public interface ItemModifier {
 
     /**
      * Apply mult (multiplier) addition.
-     * Used by items that add flat mult (e.g., 金箍棒 +4/+7/+11 mult).
+     * Used by items that add flat mult (e.g., 芭蕉扇 +4/+7/+11 mult).
      * @param level item level
      * @return mult points to add
      */

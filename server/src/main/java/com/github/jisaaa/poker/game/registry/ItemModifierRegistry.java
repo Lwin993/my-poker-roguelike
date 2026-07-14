@@ -19,7 +19,7 @@ public class ItemModifierRegistry {
 
     static {
         // ---- v3.1: 4大法宝 ----
-        register("artifact_jgb", new JinGuBangModifier());      // 金箍棒
+        register("artifact_bjs", new BaJiaoShanModifier());     // 芭蕉扇
         register("artifact_zjl", new ZiJinLingModifier());      // 紫金铃
         register("artifact_rsg", new RenShenGuoModifier());     // 人参果
         register("artifact_hyjj", new HuoYanJinJingModifier()); // 火眼金睛
@@ -49,8 +49,8 @@ public class ItemModifierRegistry {
 // v3.1: 4大法宝 Modifier 实现
 // ================================================================
 
-/** 金箍棒 — +倍率（稳定增伤） */
-class JinGuBangModifier implements ItemModifier {
+/** 芭蕉扇 — +倍率（稳定增伤） */
+class BaJiaoShanModifier implements ItemModifier {
     private static final double[] MULT_ADD = {4.0, 7.0, 11.0};
 
     @Override

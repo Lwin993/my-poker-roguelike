@@ -31,14 +31,23 @@ const MONSTER_TEXTURE_PATHS = [
 	["res://assets/monsters/huoyibing.png", "res://assets/monsters/huolingtong.png", "res://assets/monsters/honghaier.png"],
 ]
 
-# 三位大妖在剩余血量不高于 30% 时切换狂暴形态；只改变表现，不额外修改数值。
+# 三位大妖在第一阶段剩余血量不高于 30% 时进入狂暴第二阶段。
 const BOSS_ENRAGED_TEXTURE_PATHS = [
 	"res://assets/monsters/baigujing_enraged.png",
 	"res://assets/monsters/huangfengguai_enraged.png",
 	"res://assets/monsters/honghaier_enraged.png",
 ]
 
+# 每一轮使用独立的战斗主题场景：白骨岭、黄风岭、火云洞。
+const BATTLE_BACKGROUND_PATHS = [
+	"res://assets/backgrounds/white-bone-ridge.png",
+	"res://assets/backgrounds/yellow-wind-ridge.png",
+	"res://assets/backgrounds/fire-cloud-cave.png",
+]
+
 const BOSS_ENRAGE_REMAINING_RATIO := 0.30
+const BOSS_ENRAGED_MAX_HEALTH_MULTIPLIER := 1.50
+const BOSS_ENRAGE_ACTION_BONUS := 4
 
 # 精英怪被动效果（blind=1时触发，按v3.1设计文档）
 const ELITE_SKILLS = [
@@ -58,10 +67,14 @@ var game_coins:    int  = 0
 var play_log:      Array = []
 var current_phase: int  = Phase.MAIN_MENU
 var _pending_next_round: bool = false  # 大妖通关后，商店关闭时推进到下一轮
+# 兼容旧存档/旧流程；新流程会从红孩儿战斗结算页直接进入最终结算。
 var _pending_final_result: bool = false
 var last_cleared_round: int = -1
 var last_cleared_blind: int = -1
 var last_cleared_reward: int = 0
+var boss_enraged: bool = false
+# 狂暴触发时的累计伤害；第二阶段血量只计算此后的新增伤害。
+var boss_enrage_score_start: int = 0
 
 # 门槛表（可被远程配置覆盖）
 # v3.1: HP从旧值调整至新曲线
@@ -81,7 +94,15 @@ var coin_rewards: Array = [
 var max_revives: int = 3
 
 func get_current_threshold() -> int:
-	return thresholds[current_round][current_blind]
+	var base_health: int = thresholds[current_round][current_blind]
+	if current_blind == 2 and boss_enraged:
+		return int(ceil(float(base_health) * BOSS_ENRAGED_MAX_HEALTH_MULTIPLIER))
+	return base_health
+
+func get_current_monster_health() -> int:
+	var max_health := get_current_threshold()
+	var phase_damage := round_score - boss_enrage_score_start if boss_enraged and current_blind == 2 else round_score
+	return maxi(0, max_health - phase_damage)
 
 func get_current_blind_name() -> String:
 	return MONSTER_NAMES[current_round][current_blind]
@@ -94,18 +115,29 @@ func get_current_monster_name() -> String:
 	return MONSTER_NAMES[current_round][current_blind]
 
 func is_current_boss_enraged() -> bool:
-	if current_blind != 2:
+	return current_blind == 2 and boss_enraged
+
+func _should_enter_boss_enrage() -> bool:
+	if current_blind != 2 or boss_enraged:
 		return false
-	var threshold := float(get_current_threshold())
-	if threshold <= 0.0:
-		return false
-	var remaining_ratio := maxf(0.0, threshold - float(round_score)) / threshold
-	return remaining_ratio <= BOSS_ENRAGE_REMAINING_RATIO
+	var base_health: int = thresholds[current_round][current_blind]
+	return round_score >= int(ceil(float(base_health) * (1.0 - BOSS_ENRAGE_REMAINING_RATIO)))
+
+func _enter_boss_enrage():
+	if not _should_enter_boss_enrage():
+		return
+	boss_enraged = true
+	boss_enrage_score_start = round_score
+	plays_left += BOSS_ENRAGE_ACTION_BONUS
+	discards_left += BOSS_ENRAGE_ACTION_BONUS
 
 func get_current_monster_texture_path() -> String:
 	if is_current_boss_enraged():
 		return BOSS_ENRAGED_TEXTURE_PATHS[current_round]
 	return MONSTER_TEXTURE_PATHS[current_round][current_blind]
+
+func get_current_battle_background_path() -> String:
+	return BATTLE_BACKGROUND_PATHS[clampi(current_round, 0, BATTLE_BACKGROUND_PATHS.size() - 1)]
 
 func get_current_boss_phase_label() -> String:
 	if current_blind != 2:
@@ -152,6 +184,8 @@ func start_new_game():
 	last_cleared_round = -1
 	last_cleared_blind = -1
 	last_cleared_reward = 0
+	boss_enraged = false
+	boss_enrage_score_start = 0
 	DeckManager.reset()
 	ItemManager.reset()
 	BossSkillManager.reset()
@@ -205,18 +239,32 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 	round_score += gained
 	total_score += gained
 	plays_left  -= 1
+	var entered_boss_enrage := _should_enter_boss_enrage()
+	if entered_boss_enrage:
+		_enter_boss_enrage()
 
 	# 火灵童被动：首打出牌后消耗
 	if BossSkillManager.is_first_play_nerfed():
 		BossSkillManager.consume_first_play_nerf()
 
+	var current_play_index := 0
+	for logged_play in play_log:
+		if logged_play.get("round", -1) == current_round and logged_play.get("blind", -1) == current_blind:
+			current_play_index += 1
 	play_log.append({
 		"round": current_round,
 		"blind": current_blind,
-		"play_idx": 4 - plays_left - 1,
+		"play_idx": current_play_index,
 		"cards": played_cards.map(func(c): return c.serialize()),
 		"consumables": applied_consumable_ids,
-		"snapshot": score_result.snapshot,
+		"snapshot": score_result.snapshot.duplicate(true),
+		"steps": score_result.get("steps", []).duplicate(true),
+		"chips": int(score_result.get("chips", 0)),
+		"mult": float(score_result.get("mult", 1.0)),
+		"special_mult": float(score_result.get("special_mult", 1.0)),
+		"is_crit": bool(score_result.get("is_crit", false)),
+		"crit_mult": float(score_result.get("crit_mult", 2.0)),
+		"blocked_by_boss": bool(score_result.get("blocked_by_boss", false)),
 		"claimed": gained,
 		"hand_name": hand_result.hand_name,
 	})
@@ -225,9 +273,10 @@ func play_hand(selected_indices: Array, active_consumable_ids: Array) -> Diction
 	play_result_received.emit(score_result)
 
 	# 不在此处推进阶段——由 UI 动画播完后调用 advance_after_play()
-	var threshold = thresholds[current_round][current_blind]
-	score_result["blind_cleared"] = (round_score >= threshold)
-	score_result["out_of_plays"]  = (plays_left == 0 and round_score < threshold)
+	var current_health := get_current_monster_health()
+	score_result["boss_enraged"] = entered_boss_enrage
+	score_result["blind_cleared"] = current_health <= 0
+	score_result["out_of_plays"]  = (plays_left == 0 and current_health > 0)
 
 	return score_result
 
@@ -245,31 +294,58 @@ func discard_cards(selected_indices: Array) -> bool:
 	return true
 
 func _on_blind_cleared():
+	# 伤害动画或按钮回调重复到达时，不能重复发放通关奖励。
+	if current_phase == Phase.ROUND_END:
+		return
+
 	last_cleared_round = current_round
 	last_cleared_blind = current_blind
 	last_cleared_reward = coin_rewards[current_round][current_blind]
 	game_coins += last_cleared_reward
 	ItemManager.on_round_end()
+	_pending_next_round = false
+	_pending_final_result = false
 
-	if current_blind == 2:
-		if current_round == 2:
-			# 第9场战斗后仍开放最后一次仙铺，再进入结算。
-			_pending_final_result = true
-			_set_phase(Phase.SHOP)
-		else:
-			# 大妖通关 → 先进商店 → 商店关闭后推进到下一轮
-			_pending_next_round = true
-			_set_phase(Phase.SHOP)
-	else:
-		current_blind += 1
+	# 保留刚结束战斗的轮次、妖怪和伤害数据，交给结算页完整展示。
+	# 玩家点击“通过”之后才准备下一场，避免结算页读到下一只妖怪。
+	_set_phase(Phase.ROUND_END)
+
+func continue_after_battle_settlement():
+	if current_phase != Phase.ROUND_END:
+		return
+
+	var cleared_round := last_cleared_round
+	var cleared_blind := last_cleared_blind
+	if cleared_round < 0 or cleared_blind < 0:
+		return
+
+	# 红孩儿是最终关卡：从战斗结算直接进入本局最终结算，不再开放仙铺。
+	if cleared_round == 2 and cleared_blind == 2:
+		_pending_final_result = false
+		_pending_next_round = false
+		GameAPI.submit_result()
+		_set_phase(Phase.FINAL_RESULT)
+		return
+
+	# 普通/精英战先准备下一只妖怪，再进入仙铺；离开仙铺即可直接开战。
+	if cleared_blind < 2:
+		current_round = cleared_round
+		current_blind = cleared_blind + 1
 		_reset_blind()
 		_set_phase(Phase.SHOP)
+		return
+
+	# 前两轮大妖之后仍进入仙铺，关闭仙铺时再切换到下一轮。
+	_pending_next_round = true
+	_set_phase(Phase.SHOP)
 
 func _reset_blind():
 	ItemManager.on_round_end()
 	round_score   = 0
 	plays_left    = 4
 	discards_left = 4
+	boss_enraged = false
+	boss_enrage_score_start = 0
 	DeckManager.reset()
 	# 每回合开始：通知法宝刷新随机属性（如火眼金睛随机花色）
 	for joker in ItemManager.jokers:

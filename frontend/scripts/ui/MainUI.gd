@@ -3,6 +3,7 @@ extends Control
 
 @onready var main_menu    = $MainMenu
 @onready var game_board   = $GameBoard
+@onready var battle_settlement = $BattleSettlement
 @onready var shop_node    = $Shop
 @onready var result_screen = $ResultScreen
 @onready var rules_dialog  = $RulesDialog
@@ -13,6 +14,7 @@ extends Control
 
 # 子场景脚本引用（动态加载）
 var _game_board_ui = null
+var _battle_settlement_ui = null
 var _shop_ui       = null
 var _result_ui     = null
 var _rank_ui       = null
@@ -52,6 +54,7 @@ func _style_button(btn: Button, color: Color):
 func _load_sub_scenes():
 	# 动态加载子场景内容
 	var board_scene  = load("res://scenes/GameBoard.tscn")
+	var settlement_scene = load("res://scenes/BattleSettlement.tscn")
 	var shop_scene   = load("res://scenes/Shop.tscn")
 	var result_scene = load("res://scenes/ResultScreen.tscn")
 	var rank_scene   = load("res://scenes/Rank.tscn")
@@ -60,6 +63,11 @@ func _load_sub_scenes():
 		var board_inst = board_scene.instantiate()
 		game_board.add_child(board_inst)
 		_game_board_ui = board_inst
+
+	if settlement_scene:
+		var settlement_inst = settlement_scene.instantiate()
+		battle_settlement.add_child(settlement_inst)
+		_battle_settlement_ui = settlement_inst
 
 	if shop_scene:
 		var shop_inst = shop_scene.instantiate()
@@ -116,6 +124,10 @@ func _on_phase_changed(new_phase: int):
 	match new_phase:
 		RoundManager.Phase.PLAYING, RoundManager.Phase.ROUND_START:
 			_show_panel(game_board)
+		RoundManager.Phase.ROUND_END:
+			_show_panel(battle_settlement)
+			if _battle_settlement_ui and _battle_settlement_ui.has_method("show_settlement"):
+				_battle_settlement_ui.show_settlement()
 		RoundManager.Phase.SHOP:
 			_show_panel(shop_node)
 			if _shop_ui and _shop_ui.has_method("refresh_shop"):
@@ -130,7 +142,7 @@ func _on_phase_changed(new_phase: int):
 			_update_start_button()
 
 func _show_panel(panel: Control):
-	for child in [main_menu, game_board, shop_node, result_screen]:
+	for child in [main_menu, game_board, battle_settlement, shop_node, result_screen]:
 		child.visible = (child == panel)
 
 # Callback when backend confirms game start

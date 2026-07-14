@@ -153,6 +153,13 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 visible = false
 
+[node name="BattleSettlement" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+visible = false
+
 [node name="ResultScreen" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
@@ -186,9 +193,10 @@ dialog_text = "📖 游戏规则
   红孩儿·三昧真火：仅2种牌型可伤害
   用对应克制道具可破解！
 
-🛒 仙铺（每个回合通关后进入）：
+🛒 仙铺（前8场战斗通关后进入）：
 • 法宝：持久被动效果，可升至3级
 • 道具：出牌前激活，大幅提升伤害
+• 红孩儿通关后直接进入最终结算
 
 ❤️ 复活：失败时可选择复活（最多3次）
 

@@ -6,6 +6,8 @@ extends Control
 var _time := 0.0
 var _particles: Array = []
 var _flash_color := Color.TRANSPARENT
+var battle_theme := 0
+var battle_enraged := false
 
 func _ready():
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -41,6 +43,14 @@ func flash(color: Color, strength: float = 0.28):
 	_flash_color = color
 	_flash_color.a = strength
 
+func set_battle_theme(round_index: int):
+	battle_theme = clampi(round_index, 0, 2)
+	queue_redraw()
+
+func set_battle_enraged(enraged: bool):
+	battle_enraged = enraged
+	queue_redraw()
+
 func _draw():
 	var palette = _get_palette()
 	# 多层色带模拟纵向渐变，兼容 GL Compatibility 与 Web。
@@ -51,12 +61,18 @@ func _draw():
 
 	var center = Vector2(size.x * 0.5, size.y * (0.34 if variant == "battle" else 0.28))
 	var ray_color: Color = palette[2]
-	for i in range(20):
-		var a0 = _time * 0.035 + TAU * float(i) / 20.0
+	var ray_count := 30 if battle_enraged else 20
+	for i in range(ray_count):
+		var a0 = _time * (0.16 if battle_enraged else 0.035) + TAU * float(i) / float(ray_count)
 		var a1 = a0 + TAU / 44.0
 		var length = maxf(size.x, size.y) * 0.82
 		var points = PackedVector2Array([center, center + Vector2(cos(a0), sin(a0)) * length, center + Vector2(cos(a1), sin(a1)) * length])
-		draw_colored_polygon(points, Color(ray_color.r, ray_color.g, ray_color.b, 0.035 if i % 2 == 0 else 0.018))
+		var ray_alpha := (0.075 if i % 2 == 0 else 0.035) if battle_enraged else (0.035 if i % 2 == 0 else 0.018)
+		var active_ray_color := Color(1.0, 0.12, 0.03) if battle_enraged else ray_color
+		draw_colored_polygon(points, Color(active_ray_color.r, active_ray_color.g, active_ray_color.b, ray_alpha))
+	if battle_enraged:
+		var pulse := 0.055 + sin(_time * 5.0) * 0.018
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.38, 0.0, 0.0, pulse))
 
 	# 中心光晕与边缘装饰，保留纸牌游戏的印刷纹理与聚光感。
 	for i in range(6, 0, -1):
@@ -103,4 +119,8 @@ func _get_palette() -> Array:
 		"menu": return [Color("10062d"), Color("33105d"), Color("ff3b9d")]
 		"shop": return [Color("071d3b"), Color("13245a"), Color("21e6ff")]
 		"result": return [Color("2b071d"), Color("5a150d"), Color("ffd34a")]
-		_: return [Color("06191b"), Color("12383b"), Color("35c6aa")]
+		_:
+			match battle_theme:
+				0: return [Color("071225"), Color("182e55"), Color("829dff")]
+				1: return [Color("1c1006"), Color("563016"), Color("f2a538")]
+				_: return [Color("210506"), Color("61140d"), Color("ff5b27")]

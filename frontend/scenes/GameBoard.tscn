@@ -19,23 +19,57 @@ mouse_filter = 2
 script = ExtResource("2")
 variant = "battle"
 
-; ── 整体竖向主容器 ──
-[node name="MainVBox" type="VBoxContainer" parent="."]
+; ── 随轮次切换的西游主题场景，完整铺满屏幕 ──
+[node name="BattleBackground" type="TextureRect" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 0.43
+modulate = Color(1, 1, 1, 0.96)
+expand_mode = 1
+stretch_mode = 6
+mouse_filter = 2
+
+[node name="BattleVignette" type="ColorRect" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 0.43
+color = Color(0.015, 0.018, 0.028, 0.24)
+mouse_filter = 2
+
+; ── 装备/法宝是独立中间层，不继承妖怪场景背景 ──
+[node name="EquipmentAreaBG" type="ColorRect" parent="."]
+layout_mode = 1
+anchor_top = 0.43
+anchor_right = 1.0
+anchor_bottom = 0.56
+color = Color(0.055, 0.035, 0.03, 1)
+mouse_filter = 2
+
+; ── 手牌与按钮共用独立操作台，和妖怪展示区形成清晰分割 ──
+[node name="OperationAreaBG" type="Panel" parent="."]
+layout_mode = 1
+anchor_top = 0.56
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+; ── 按战斗草图分区的主画布：上方妖怪/装备，下方道具/手牌 ──
+[node name="MainVBox" type="Control" parent="."]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 7.0
-offset_top = 6.0
-offset_right = -7.0
-offset_bottom = -6.0
-theme_override_constants/separation = 5
+offset_left = 9.0
+offset_top = 7.0
+offset_right = -9.0
+offset_bottom = -7.0
 
 ; ── 顶部：回合 + 分数 + 出换牌次数 + 金币（横向一排）──
 [node name="TopBar" type="HBoxContainer" parent="MainVBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 48)
 theme_override_constants/separation = 6
+visible = false
 
 [node name="RoundBadge" type="PanelContainer" parent="MainVBox/TopBar"]
 layout_mode = 2
@@ -100,6 +134,7 @@ theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 [node name="ScoreContainer" type="PanelContainer" parent="MainVBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 64)
+visible = false
 
 [node name="ScoreVBox" type="VBoxContainer" parent="MainVBox/ScoreContainer"]
 layout_mode = 2
@@ -136,6 +171,7 @@ theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 [node name="ParamsPanel" type="PanelContainer" parent="MainVBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 40)
+visible = false
 
 [node name="ParamsHBox" type="HBoxContainer" parent="MainVBox/ParamsPanel"]
 layout_mode = 2
@@ -165,39 +201,72 @@ horizontal_alignment = 1
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(1.0, 0.40, 0.10, 1)
 
-; ── 小丑牌 + 消耗品行 ──
-[node name="JokerSection" type="HBoxContainer" parent="MainVBox"]
+; ── 法宝装备栏 + 战斗道具栏（明确分区）──
+[node name="JokerSection" type="VBoxContainer" parent="MainVBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 82)
-theme_override_constants/separation = 8
+custom_minimum_size = Vector2(0, 136)
+theme_override_constants/separation = 4
+visible = false
 
-[node name="JokerScroll" type="ScrollContainer" parent="MainVBox/JokerSection"]
+[node name="ArtifactRow" type="HBoxContainer" parent="MainVBox/JokerSection"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 72)
+theme_override_constants/separation = 5
+
+[node name="ArtifactBarLabel" type="Label" parent="MainVBox/JokerSection/ArtifactRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(76, 0)
+text = "法宝\n装备栏"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+theme_override_colors/font_outline_color = Color(0.10, 0.03, 0.02, 1)
+theme_override_constants/outline_size = 4
+
+[node name="JokerScroll" type="ScrollContainer" parent="MainVBox/JokerSection/ArtifactRow"]
 layout_mode = 2
 size_flags_horizontal = 3
 horizontal_scroll_mode = 1
 vertical_scroll_mode = 0
 
-[node name="JokerSlots" type="HBoxContainer" parent="MainVBox/JokerSection/JokerScroll"]
+[node name="JokerSlots" type="HBoxContainer" parent="MainVBox/JokerSection/ArtifactRow/JokerScroll"]
 layout_mode = 2
-alignment = 1
+alignment = 0
 theme_override_constants/separation = 5
 
-[node name="ConsScroll" type="ScrollContainer" parent="MainVBox/JokerSection"]
+[node name="ConsumableRow" type="HBoxContainer" parent="MainVBox/JokerSection"]
 layout_mode = 2
-custom_minimum_size = Vector2(208, 0)
+custom_minimum_size = Vector2(0, 60)
+theme_override_constants/separation = 5
+
+[node name="ConsumableBarLabel" type="Label" parent="MainVBox/JokerSection/ConsumableRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(76, 0)
+text = "战斗\n道具栏"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.30, 0.88, 0.78, 1)
+theme_override_colors/font_outline_color = Color(0.02, 0.10, 0.10, 1)
+theme_override_constants/outline_size = 4
+
+[node name="ConsScroll" type="ScrollContainer" parent="MainVBox/JokerSection/ConsumableRow"]
+layout_mode = 2
+size_flags_horizontal = 3
 horizontal_scroll_mode = 1
 vertical_scroll_mode = 0
 
-[node name="ConsSlots" type="HBoxContainer" parent="MainVBox/JokerSection/ConsScroll"]
+[node name="ConsSlots" type="HBoxContainer" parent="MainVBox/JokerSection/ConsumableRow/ConsScroll"]
 layout_mode = 2
-alignment = 2
+alignment = 0
 theme_override_constants/separation = 4
 
 ; ── 出牌区（展示打出的牌 + 计分动画）──
 [node name="PlaySurface" type="Control" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 188)
-size_flags_vertical = 3
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 0.43
 
 [node name="PlaySurfaceBG" type="Panel" parent="MainVBox/PlaySurface"]
 layout_mode = 1
@@ -206,46 +275,287 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 mouse_filter = 2
 
-[node name="MonsterGlow" type="TextureRect" parent="MainVBox/PlaySurface"]
+; ── 妖怪头顶血条 ──
+[node name="MonsterHealthPanel" type="Panel" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.20
+anchor_top = 0.028
+anchor_right = 0.70
+anchor_bottom = 0.098
+mouse_filter = 2
+z_index = 20
+
+[node name="HealthTitleLabel" type="Label" parent="MainVBox/PlaySurface/MonsterHealthPanel"]
+layout_mode = 1
+anchor_left = 0.04
+anchor_right = 0.96
+anchor_bottom = 0.38
+text = "白骨精"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1.0, 0.88, 0.66, 1)
+visible = false
+
+[node name="HealthValueLabel" type="Label" parent="MainVBox/PlaySurface/MonsterHealthPanel"]
+layout_mode = 1
+anchor_left = 0.06
+anchor_top = 0.0
+anchor_right = 0.94
+anchor_bottom = 1.0
+text = "1500 / 1500"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(1.0, 0.94, 0.82, 1)
+theme_override_colors/font_outline_color = Color(0.18, 0.02, 0.02, 0.92)
+theme_override_constants/outline_size = 3
+z_index = 2
+
+[node name="HealthProgressBar" type="ProgressBar" parent="MainVBox/PlaySurface/MonsterHealthPanel"]
+layout_mode = 1
+anchor_left = 0.03
+anchor_top = 0.12
+anchor_right = 0.97
+anchor_bottom = 0.88
+show_percentage = false
+
+[node name="HealthDetailLabel" type="Label" parent="MainVBox/PlaySurface/MonsterHealthPanel"]
+layout_mode = 1
+anchor_left = 0.02
+anchor_top = 0.80
+anchor_right = 0.98
+anchor_bottom = 0.99
+text = "已造成 0 伤害"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 8
+theme_override_colors/font_color = Color(0.62, 0.74, 0.72, 1)
+visible = false
+
+[node name="RoundTurnBadge" type="PanelContainer" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.72
+anchor_top = 0.028
+anchor_right = 0.98
+anchor_bottom = 0.098
+mouse_filter = 2
+z_index = 20
+
+[node name="RoundTurnLabel" type="Label" parent="MainVBox/PlaySurface/RoundTurnBadge"]
+layout_mode = 2
+text = "第1轮 · 第3回合"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1.0, 0.88, 0.60, 1)
+
+; ── 妖怪脚下的武器 + 法宝木质装备栏 ──
+[node name="ArtifactDock" type="Panel" parent="MainVBox"]
+layout_mode = 1
+anchor_top = 0.43
+anchor_right = 1.0
+anchor_bottom = 0.56
+z_index = 25
+
+[node name="WeaponDockLabel" type="Label" parent="MainVBox/ArtifactDock"]
 layout_mode = 1
 anchor_left = 0.015
+anchor_right = 0.205
+anchor_bottom = 0.22
+text = "武器"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.91, 0.76, 0.48, 1)
+theme_override_colors/font_outline_color = Color(0.20, 0.07, 0.02, 1)
+theme_override_constants/outline_size = 3
+
+[node name="ArtifactDockLabel" type="Label" parent="MainVBox/ArtifactDock"]
+layout_mode = 1
+anchor_left = 0.215
+anchor_right = 1.0
+anchor_bottom = 0.22
+text = "法宝"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(0.96, 0.82, 0.54, 1)
+theme_override_colors/font_outline_color = Color(0.20, 0.07, 0.02, 1)
+theme_override_constants/outline_size = 3
+
+[node name="WeaponDivider" type="ColorRect" parent="MainVBox/ArtifactDock"]
+layout_mode = 1
+anchor_left = 0.205
+anchor_top = 0.10
+anchor_right = 0.205
+anchor_bottom = 0.92
+offset_left = -1.0
+offset_right = 1.0
+color = Color(0.83, 0.65, 0.35, 0.42)
+mouse_filter = 2
+
+[node name="AttackStickButton" type="Button" parent="MainVBox/ArtifactDock"]
+layout_mode = 1
+anchor_left = 0.025
+anchor_top = 0.23
+anchor_right = 0.025
+anchor_bottom = 0.23
+offset_right = 64.0
+offset_bottom = 64.0
+text = ""
+theme_override_font_sizes/font_size = 13
+z_index = 30
+
+[node name="StickArt" type="TextureRect" parent="MainVBox/ArtifactDock/AttackStickButton"]
+layout_mode = 1
+anchor_left = 0.22
+anchor_top = 0.05
+anchor_right = 0.78
+anchor_bottom = 0.76
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="AttackInfoHint" type="Label" parent="MainVBox/ArtifactDock/AttackStickButton"]
+layout_mode = 1
+anchor_left = 0.02
+anchor_top = 0.74
+anchor_right = 0.98
+anchor_bottom = 0.98
+text = "战报"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 9
+theme_override_colors/font_color = Color(1.0, 0.86, 0.46, 1)
+mouse_filter = 2
+
+[node name="ArtifactScroll" type="ScrollContainer" parent="MainVBox/ArtifactDock"]
+layout_mode = 1
+anchor_left = 0.215
+anchor_top = 0.23
+anchor_right = 0.98
+anchor_bottom = 0.98
+horizontal_scroll_mode = 1
+vertical_scroll_mode = 0
+
+[node name="ArtifactSlots" type="HBoxContainer" parent="MainVBox/ArtifactDock/ArtifactScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="DamageZone" type="Panel" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.57
+anchor_top = 0.24
+anchor_right = 0.94
+anchor_bottom = 0.68
+visible = false
+mouse_filter = 2
+
+[node name="DamageZoneTitle" type="Label" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.49
+anchor_top = 0.065
+anchor_right = 0.94
+anchor_bottom = 0.18
+text = "伤害结算"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1.0, 0.88, 0.52, 1)
+visible = false
+
+[node name="DamageChipsLabel" type="Label" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.48
+anchor_top = 0.16
+anchor_right = 0.70
+anchor_bottom = 0.36
+text = "0"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 33
+theme_override_colors/font_color = Color(0.29, 0.66, 1.0, 1)
+visible = false
+
+[node name="DamageMultLabel" type="Label" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.71
+anchor_top = 0.16
+anchor_right = 0.95
+anchor_bottom = 0.36
+text = "×1.00"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 29
+theme_override_colors/font_color = Color(1.0, 0.35, 0.22, 1)
+visible = false
+
+[node name="StrikeStick" type="TextureRect" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.10
+anchor_top = 0.905
+anchor_right = 0.10
+anchor_bottom = 0.905
+offset_top = -32.0
+offset_right = 64.0
+offset_bottom = 32.0
+expand_mode = 1
+stretch_mode = 5
+visible = false
+mouse_filter = 2
+z_index = 80
+
+[node name="MonsterShakeRoot" type="Control" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="MonsterGlow" type="TextureRect" parent="MainVBox/PlaySurface/MonsterShakeRoot"]
+layout_mode = 1
+anchor_left = 0.13
 anchor_top = 0.055
-anchor_right = 0.58
-anchor_bottom = 0.90
+anchor_right = 0.80
+anchor_bottom = 0.98
 modulate = Color(0.95, 0.55, 0.20, 0.12)
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
 
-[node name="MonsterAvatar" type="TextureRect" parent="MainVBox/PlaySurface"]
+[node name="MonsterAvatar" type="TextureRect" parent="MainVBox/PlaySurface/MonsterShakeRoot"]
 layout_mode = 1
-anchor_left = 0.015
+anchor_left = 0.13
 anchor_top = 0.055
-anchor_right = 0.58
-anchor_bottom = 0.90
+anchor_right = 0.80
+anchor_bottom = 0.98
 expand_mode = 1
 stretch_mode = 5
 mouse_filter = 2
 
 [node name="MonsterTitle" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
-anchor_left = 0.015
-anchor_top = 0.78
-anchor_right = 0.58
-anchor_bottom = 0.98
+anchor_left = 0.16
+anchor_top = 0.77
+anchor_right = 0.76
+anchor_bottom = 0.90
 text = "游魂"
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 19
+theme_override_font_sizes/font_size = 20
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+visible = false
 
 [node name="BossPhaseBadge" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
-anchor_left = 0.025
-anchor_top = 0.025
-anchor_right = 0.40
-anchor_bottom = 0.16
-text = "初始形态"
+anchor_left = 0.25
+anchor_top = 0.27
+anchor_right = 0.55
+anchor_bottom = 0.37
+text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 11
@@ -255,21 +565,21 @@ visible = false
 [node name="CalcTitle" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
 anchor_left = 0.48
-anchor_top = 0.02
+anchor_top = 0.35
 anchor_right = 0.96
-anchor_bottom = 0.18
+anchor_bottom = 0.46
 text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 20
+theme_override_font_sizes/font_size = 15
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
 
 [node name="FormulaLabel" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
 anchor_left = 0.47
-anchor_top = 0.17
+anchor_top = 0.40
 anchor_right = 0.98
-anchor_bottom = 0.30
+anchor_bottom = 0.53
 text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
@@ -279,9 +589,9 @@ theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 [node name="PlayedCenter" type="CenterContainer" parent="MainVBox/PlaySurface"]
 layout_mode = 1
 anchor_left = 0.46
-anchor_top = 0.25
+anchor_top = 0.50
 anchor_right = 1.0
-anchor_bottom = 0.84
+anchor_bottom = 0.76
 
 [node name="PlayedArea" type="HBoxContainer" parent="MainVBox/PlaySurface/PlayedCenter"]
 layout_mode = 2
@@ -299,18 +609,20 @@ horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 15
 theme_override_colors/font_color = Color(0.45, 0.66, 0.63, 0.72)
+visible = false
 
 [node name="ScoreBurstLabel" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
-anchor_left = 0.52
-anchor_top = 0.10
-anchor_right = 0.90
-anchor_bottom = 0.28
+anchor_left = 0.56
+anchor_top = 0.39
+anchor_right = 0.96
+anchor_bottom = 0.59
 text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 42
+theme_override_font_sizes/font_size = 46
 theme_override_colors/font_color = Color(1.0, 0.94, 0.76, 1)
+z_index = 120
 
 [node name="CalcStepsList" type="VBoxContainer" parent="MainVBox/PlaySurface"]
 layout_mode = 1
@@ -319,6 +631,7 @@ anchor_top = 0.06
 anchor_right = 0.96
 anchor_bottom = 0.30
 theme_override_constants/separation = 4
+visible = false
 
 [node name="FinalScoreLabel" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
@@ -331,19 +644,38 @@ horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 24
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+visible = false
 
 [node name="CritBanner" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
-anchor_left = 0.52
-anchor_top = 0.56
-anchor_right = 0.90
-anchor_bottom = 0.74
+anchor_left = 0.58
+anchor_top = 0.29
+anchor_right = 0.94
+anchor_bottom = 0.42
 text = ""
 horizontal_alignment = 1
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 18
 theme_override_colors/font_color = Color(1.0, 0.45, 0.10, 1)
 visible = false
+z_index = 121
+
+[node name="MonsterDamageLabel" type="Label" parent="MainVBox/PlaySurface"]
+layout_mode = 1
+anchor_left = 0.12
+anchor_top = 0.35
+anchor_right = 0.74
+anchor_bottom = 0.61
+text = ""
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 42
+theme_override_colors/font_color = Color(1.0, 0.84, 0.30, 1)
+theme_override_colors/font_outline_color = Color(0.22, 0.01, 0.01, 1)
+theme_override_constants/outline_size = 8
+visible = false
+mouse_filter = 2
+z_index = 500
 
 [node name="CalcCloseHint" type="Label" parent="MainVBox/PlaySurface"]
 layout_mode = 1
@@ -359,79 +691,181 @@ theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 visible = false
 
 ; ── Boss 技能提示 + 排序按钮行 ──
-[node name="BottomTools" type="HBoxContainer" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 32)
-theme_override_constants/separation = 6
+[node name="BottomTools" type="Control" parent="MainVBox"]
+layout_mode = 1
+anchor_left = 0.29
+anchor_top = 0.855
+anchor_right = 0.985
+anchor_bottom = 0.995
+z_index = 40
 
 [node name="BossSkillLabel" type="Label" parent="MainVBox/BottomTools"]
-layout_mode = 2
-size_flags_horizontal = 3
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 0.46
 text = ""
+horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 10
 theme_override_colors/font_color = Color(1.0, 0.3, 0.3, 1)
 autowrap_mode = 3
 
-[node name="SortRow" type="HBoxContainer" parent="MainVBox/BottomTools"]
+[node name="SortDock" type="PanelContainer" parent="MainVBox/BottomTools"]
+layout_mode = 1
+anchor_left = 0.24
+anchor_top = 0.52
+anchor_right = 0.94
+anchor_bottom = 1.0
+
+[node name="SortRow" type="HBoxContainer" parent="MainVBox/BottomTools/SortDock"]
 layout_mode = 2
 alignment = 2
-theme_override_constants/separation = 5
+theme_override_constants/separation = 4
 
-[node name="SortByRankButton" type="Button" parent="MainVBox/BottomTools/SortRow"]
+[node name="SortLabel" type="Label" parent="MainVBox/BottomTools/SortDock/SortRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(64, 28)
+custom_minimum_size = Vector2(34, 0)
+text = "牌序"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(0.68, 0.70, 0.72, 1)
+
+[node name="SortByRankButton" type="Button" parent="MainVBox/BottomTools/SortDock/SortRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(70, 30)
 text = "按大小"
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 11
 
-[node name="SortBySuitButton" type="Button" parent="MainVBox/BottomTools/SortRow"]
+[node name="SortBySuitButton" type="Button" parent="MainVBox/BottomTools/SortDock/SortRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(64, 28)
+custom_minimum_size = Vector2(72, 30)
 text = "按花色"
-theme_override_font_sizes/font_size = 12
+theme_override_font_sizes/font_size = 11
 
 ; ── 手牌区 ──
-[node name="HandRow" type="HBoxContainer" parent="MainVBox"]
+[node name="HandRow" type="PanelContainer" parent="MainVBox"]
+layout_mode = 1
+anchor_top = 0.56
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="HandContent" type="HBoxContainer" parent="MainVBox/HandRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 92)
 alignment = 1
-theme_override_constants/separation = 3
+theme_override_constants/separation = 5
 
-[node name="HandHintLabel" type="Label" parent="MainVBox/HandRow"]
+; ── 出牌区内的三格木质道具栏 ──
+[node name="ConsumableDock" type="Panel" parent="MainVBox/HandRow/HandContent"]
 layout_mode = 2
-custom_minimum_size = Vector2(44, 0)
-text = "选择\n5张"
-vertical_alignment = 1
-horizontal_alignment = 1
-theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
-autowrap_mode = 3
+custom_minimum_size = Vector2(110, 0)
 
-[node name="HandArea" type="HBoxContainer" parent="MainVBox/HandRow"]
+[node name="ConsumableDockLabel" type="Label" parent="MainVBox/HandRow/HandContent/ConsumableDock"]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 0.13
+text = "道具 0/3"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 10
+theme_override_colors/font_color = Color(1.0, 0.87, 0.52, 1)
+theme_override_colors/font_outline_color = Color(0.20, 0.07, 0.02, 1)
+theme_override_constants/outline_size = 3
+
+[node name="ConsumableScroll" type="ScrollContainer" parent="MainVBox/HandRow/HandContent/ConsumableDock"]
+layout_mode = 1
+anchor_left = 0.10
+anchor_top = 0.14
+anchor_right = 0.90
+anchor_bottom = 0.98
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="ConsumableSlots" type="VBoxContainer" parent="MainVBox/HandRow/HandContent/ConsumableDock/ConsumableScroll"]
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+theme_override_constants/separation = 4
+
+[node name="HandArea" type="Control" parent="MainVBox/HandRow/HandContent"]
 layout_mode = 2
 size_flags_horizontal = 3
-alignment = 1
-theme_override_constants/separation = 3
+clip_contents = false
 
 ; ── 底部操作按钮 ──
 [node name="ButtonRow" type="HBoxContainer" parent="MainVBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 50)
-theme_override_constants/separation = 10
-
-[node name="PlayButton" type="Button" parent="MainVBox/ButtonRow"]
-layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 50)
-text = "▶ 出牌"
-theme_override_font_sizes/font_size = 18
+layout_mode = 1
+anchor_left = 0.25
+anchor_top = 0.625
+anchor_right = 0.985
+anchor_bottom = 0.695
+alignment = 1
+theme_override_constants/separation = 48
+z_index = 50
 
 [node name="DiscardButton" type="Button" parent="MainVBox/ButtonRow"]
 layout_mode = 2
-size_flags_horizontal = 3
-custom_minimum_size = Vector2(0, 50)
-text = "↩ 换牌"
-theme_override_font_sizes/font_size = 16
+custom_minimum_size = Vector2(108, 58)
+text = ""
+
+[node name="ActionContent" type="VBoxContainer" parent="MainVBox/ButtonRow/DiscardButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="CountLabel" type="Label" parent="MainVBox/ButtonRow/DiscardButton/ActionContent"]
+layout_mode = 2
+text = "换牌 ×4"
+horizontal_alignment = 1
+vertical_alignment = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.90, 0.91, 0.88, 1)
+
+[node name="HintLabel" type="Label" parent="MainVBox/ButtonRow/DiscardButton/ActionContent"]
+layout_mode = 2
+text = "4 次 · 选择要换的牌"
+horizontal_alignment = 1
+vertical_alignment = 0
+theme_override_font_sizes/font_size = 9
+theme_override_colors/font_color = Color(0.65, 0.70, 0.72, 1)
+visible = false
+
+[node name="PlayButton" type="Button" parent="MainVBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(108, 58)
+text = ""
+
+[node name="ActionContent" type="VBoxContainer" parent="MainVBox/ButtonRow/PlayButton"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+theme_override_constants/separation = 0
+alignment = 1
+
+[node name="CountLabel" type="Label" parent="MainVBox/ButtonRow/PlayButton/ActionContent"]
+layout_mode = 2
+text = "出牌 ×4"
+horizontal_alignment = 1
+vertical_alignment = 2
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(1, 0.97, 0.78, 1)
+theme_override_colors/font_outline_color = Color(0.20, 0.03, 0.01, 1)
+theme_override_constants/outline_size = 3
+
+[node name="HintLabel" type="Label" parent="MainVBox/ButtonRow/PlayButton/ActionContent"]
+layout_mode = 2
+text = "4 次 · 选择 5 张牌"
+horizontal_alignment = 1
+vertical_alignment = 0
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(1, 0.78, 0.42, 1)
+visible = false
 
 ; ── 浮层：分数弹出 ──
 [node name="ScorePopup" type="Label" parent="."]
@@ -482,6 +916,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 visible = false
 mouse_filter = 2
+z_index = 1000
 
 [node name="JokerDetailBG" type="ColorRect" parent="JokerDetailOverlay"]
 layout_mode = 1
@@ -494,9 +929,9 @@ mouse_filter = 0
 [node name="JokerDetailPanel" type="PanelContainer" parent="JokerDetailOverlay"]
 layout_mode = 1
 anchor_left = 0.08
-anchor_top = 0.14
+anchor_top = 0.08
 anchor_right = 0.92
-anchor_bottom = 0.86
+anchor_bottom = 0.92
 
 [node name="JokerDetailVBox" type="VBoxContainer" parent="JokerDetailOverlay/JokerDetailPanel"]
 layout_mode = 2
@@ -527,15 +962,148 @@ autowrap_mode = 3
 [node name="JokerDetailSep" type="HSeparator" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
 layout_mode = 2
 
-[node name="JokerDetailParams" type="VBoxContainer" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
+[node name="JokerDetailParamsScroll" type="ScrollContainer" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
 layout_mode = 2
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+
+[node name="JokerDetailParams" type="VBoxContainer" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox/JokerDetailParamsScroll"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 4
+
+[node name="JokerDetailUse" type="Button" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 44)
+text = "使用道具"
+theme_override_font_sizes/font_size = 15
+visible = false
 
 [node name="JokerDetailClose" type="Button" parent="JokerDetailOverlay/JokerDetailPanel/JokerDetailVBox"]
 layout_mode = 2
 custom_minimum_size = Vector2(0, 40)
 text = "关闭"
 theme_override_font_sizes/font_size = 15
+
+; ── 精英 / 大妖登场演出：遮住牌桌，完成对话与减益演示后才可迎战 ──
+[node name="EncounterIntro" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+visible = false
+mouse_filter = 0
+z_index = 1500
+
+[node name="Shade" type="ColorRect" parent="EncounterIntro"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.01, 0.012, 0.025, 0.93)
+mouse_filter = 2
+
+[node name="ThemeTint" type="ColorRect" parent="EncounterIntro"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.50, 0.16, 0.08, 0.0)
+mouse_filter = 2
+
+[node name="EffectLayer" type="Control" parent="EncounterIntro"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+
+[node name="Portrait" type="TextureRect" parent="EncounterIntro"]
+layout_mode = 1
+anchor_left = 0.10
+anchor_top = 0.055
+anchor_right = 0.90
+anchor_bottom = 0.57
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
+
+[node name="IntroCard" type="PanelContainer" parent="EncounterIntro"]
+layout_mode = 1
+anchor_left = 0.045
+anchor_top = 0.54
+anchor_right = 0.955
+anchor_bottom = 0.975
+offset_left = 0.0
+offset_top = 0.0
+offset_right = 0.0
+offset_bottom = 0.0
+
+[node name="IntroVBox" type="VBoxContainer" parent="EncounterIntro/IntroCard"]
+layout_mode = 2
+theme_override_constants/separation = 5
+
+[node name="TypeLabel" type="Label" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+text = "精英拦路"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(1, 0.72, 0.30, 1)
+
+[node name="NameLabel" type="Label" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+text = "骷髅将"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 27
+theme_override_colors/font_color = Color(1, 0.94, 0.72, 1)
+theme_override_colors/font_outline_color = Color(0.17, 0.025, 0.01, 1)
+theme_override_constants/outline_size = 5
+
+[node name="DialogueLabel" type="Label" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "白骨岭阴风贴地而来……"
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.94, 0.91, 0.84, 1)
+
+[node name="SkillPanel" type="PanelContainer" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 60)
+
+[node name="SkillVBox" type="VBoxContainer" parent="EncounterIntro/IntroCard/IntroVBox/SkillPanel"]
+layout_mode = 2
+theme_override_constants/separation = 1
+
+[node name="SkillName" type="Label" parent="EncounterIntro/IntroCard/IntroVBox/SkillPanel/SkillVBox"]
+layout_mode = 2
+text = "枯骨锁魂"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 17
+theme_override_colors/font_color = Color(1, 0.47, 0.26, 1)
+
+[node name="SkillDesc" type="Label" parent="EncounterIntro/IntroCard/IntroVBox/SkillPanel/SkillVBox"]
+layout_mode = 2
+text = "随机封锁 1 张手牌"
+horizontal_alignment = 1
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 13
+theme_override_colors/font_color = Color(0.88, 0.83, 0.74, 1)
+
+[node name="EffectPreview" type="HBoxContainer" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 57)
+alignment = 1
+theme_override_constants/separation = 6
+
+[node name="ContinueButton" type="Button" parent="EncounterIntro/IntroCard/IntroVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 47)
+text = "继续  ▶"
+theme_override_font_sizes/font_size = 17
 
 ; ── 复活弹窗 ──
 [node name="ReviveDialog" type="ConfirmationDialog" parent="."]

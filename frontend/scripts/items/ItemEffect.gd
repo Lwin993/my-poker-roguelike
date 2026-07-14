@@ -4,12 +4,13 @@ extends RefCounted
 
 var resource_data: Dictionary = {}
 var level: int = 1
+var is_temporary: bool = false
 
 # ---- 双维度效果接口 ----
 
 # 被动效果：返回字典，支持以下键：
 #   chip_add: float    — 增加chips（伤害加成），如火眼金睛按花色加chips
-#   mult_add: float    — 增加mult（倍率加成），如金箍棒固定+倍率
+#   mult_add: float    — 增加mult（倍率加成），如芭蕉扇固定+倍率
 #   crit_rate_add: float — 增加暴击率
 #   crit_mult_add: float — 增加暴击倍率
 #   special_mult: float — 特殊乘数（如人参果的概率×倍率）

@@ -14,13 +14,16 @@ func save_state():
 		"game_coins": RoundManager.game_coins,
 		"plays_left": RoundManager.plays_left,
 		"discards_left": RoundManager.discards_left,
+		"boss_enraged": RoundManager.boss_enraged,
+		"boss_enrage_score_start": RoundManager.boss_enrage_score_start,
 		"revive_count": RoundManager.revive_count,
 		"deck": DeckManager.deck.map(func(c): return c.serialize()),
 		"hand": DeckManager.hand.map(func(c): return c.serialize()),
 		"discard_pile": DeckManager.discard_pile.map(func(c): return c.serialize()),
-		"jokers": ItemManager.jokers.map(func(j): return {"id": j.resource_data.get("id", ""), "level": j.level}),
+		"jokers": ItemManager.jokers.map(func(j): return {"id": j.resource_data.get("id", ""), "level": j.level, "temporary": j.is_temporary}),
 		"consumables": ItemManager.consumables.map(func(c): return c.resource_data.get("id", "")),
 		"active_round_consumables": ItemManager.active_round_consumables.map(func(c): return c.resource_data.get("id", "")),
+		"purchased_rare_items": ItemManager.purchased_rare_item_ids.duplicate(),
 		"hand_limit": DeckManager.hand_limit,
 		"play_log": RoundManager.play_log,
 	}
@@ -54,6 +57,8 @@ func _restore_from_dict(state: Dictionary):
 	RoundManager.game_coins     = state.get("game_coins", 0)
 	RoundManager.plays_left     = state.get("plays_left", 4)
 	RoundManager.discards_left  = state.get("discards_left", 4)
+	RoundManager.boss_enraged = state.get("boss_enraged", false)
+	RoundManager.boss_enrage_score_start = state.get("boss_enrage_score_start", 0)
 	RoundManager.revive_count   = state.get("revive_count", 0)
 	RoundManager.play_log       = state.get("play_log", [])
 
@@ -66,7 +71,8 @@ func _restore_from_dict(state: Dictionary):
 	ItemManager.restore_items(
 		state.get("jokers", []),
 		state.get("consumables", []),
-		state.get("active_round_consumables", [])
+		state.get("active_round_consumables", []),
+		state.get("purchased_rare_items", [])
 	)
 	BossSkillManager.apply_skill(RoundManager.current_round, RoundManager.current_blind)
 	BossSkillManager.execute_skill_on_hand(DeckManager.hand)

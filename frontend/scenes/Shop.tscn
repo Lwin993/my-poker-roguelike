@@ -1,7 +1,9 @@
-[gd_scene load_steps=3 format=3 uid="uid://shop_scene"]
+[gd_scene load_steps=5 format=3 uid="uid://shop_scene"]
 
 [ext_resource type="Script" path="res://scripts/ui/ShopUI.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/ui/JuiceBackdrop.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ui/tudigong-shopkeeper.png" id="3"]
+[ext_resource type="Script" path="res://scripts/ui/ShopShelf.gd" id="4"]
 
 [node name="Shop" type="Control"]
 layout_mode = 3
@@ -24,125 +26,205 @@ layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 16.0
-offset_top = 14.0
-offset_right = -16.0
-offset_bottom = -14.0
-theme_override_constants/separation = 10
+offset_left = 10.0
+offset_top = 8.0
+offset_right = -10.0
+offset_bottom = -8.0
+theme_override_constants/separation = 6
 
 [node name="HeaderRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 46)
+custom_minimum_size = Vector2(0, 44)
 
 [node name="ShopTitle" type="Label" parent="VBox/HeaderRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "✨  天命仙铺"
-theme_override_font_sizes/font_size = 28
+text = "天命仙铺"
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 25
 theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
-theme_override_colors/font_outline_color = Color(0.02, 0.12, 0.32, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.035, 0.01, 1)
 theme_override_constants/outline_size = 7
 
 [node name="CoinsBadge" type="PanelContainer" parent="VBox/HeaderRow"]
 layout_mode = 2
+custom_minimum_size = Vector2(88, 40)
 
 [node name="CoinsLabel" type="Label" parent="VBox/HeaderRow/CoinsBadge"]
 layout_mode = 2
-text = "💰  0"
-theme_override_font_sizes/font_size = 18
-theme_override_colors/font_color = Color(1.0, 0.78, 0.18, 1)
+text = "💎 0"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(1.0, 0.82, 0.28, 1)
 
 [node name="SubTitle" type="Label" parent="VBox"]
 layout_mode = 2
-text = "第1轮 · 小盲 通关！"
-theme_override_font_sizes/font_size = 14
-theme_override_colors/font_color = Color(0.0, 0.86, 0.72, 1)
-
-[node name="LuckyBanner" type="PanelContainer" parent="VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 38)
-
-[node name="LuckyText" type="Label" parent="VBox/LuckyBanner"]
-layout_mode = 2
-text = "🔥 仙缘爆棚：选法宝、叠倍率，下一战直接秒妖！"
-horizontal_alignment = 1
+custom_minimum_size = Vector2(0, 22)
+text = "第1轮 · 白骨精 已降伏"
 vertical_alignment = 1
 theme_override_font_sizes/font_size = 12
-theme_override_colors/font_color = Color(1, 0.9, 0.35, 1)
+theme_override_colors/font_color = Color(0.36, 0.92, 0.78, 1)
 
-[node name="Divider" type="HSeparator" parent="VBox"]
+[node name="ShelfFrame" type="PanelContainer" parent="VBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 270)
 
-[node name="ShopLabel" type="Label" parent="VBox"]
+[node name="ShelfContents" type="Control" parent="VBox/ShelfFrame"]
 layout_mode = 2
-text = "🎴 本期天命宝物"
-theme_override_font_sizes/font_size = 13
+custom_minimum_size = Vector2(0, 270)
+
+[node name="ShelfBackdrop" type="Control" parent="VBox/ShelfFrame/ShelfContents"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("4")
+
+[node name="ShelfTitle" type="Label" parent="VBox/ShelfFrame/ShelfContents"]
+layout_mode = 1
+anchor_left = 0.05
+anchor_right = 0.95
+anchor_bottom = 0.09
+text = "今日仙缘 · 点击宝物听土地公讲解"
+horizontal_alignment = 1
+vertical_alignment = 1
+theme_override_font_sizes/font_size = 11
+theme_override_colors/font_color = Color(1.0, 0.88, 0.56, 1)
+theme_override_colors/font_outline_color = Color(0.15, 0.045, 0.01, 1)
+theme_override_constants/outline_size = 4
+
+[node name="ShopGrid" type="GridContainer" parent="VBox/ShelfFrame/ShelfContents"]
+layout_mode = 1
+anchor_left = 0.02
+anchor_top = 0.10
+anchor_right = 0.98
+anchor_bottom = 0.96
+columns = 3
+theme_override_constants/h_separation = 0
+theme_override_constants/v_separation = 8
+
+[node name="OwnedDock" type="PanelContainer" parent="VBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 154)
+
+[node name="OwnedRow" type="HBoxContainer" parent="VBox/OwnedDock"]
+layout_mode = 2
+theme_override_constants/separation = 6
+
+[node name="OwnedTitleVBox" type="VBoxContainer" parent="VBox/OwnedDock/OwnedRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(64, 0)
+alignment = 1
+
+[node name="OwnedTitle" type="Label" parent="VBox/OwnedDock/OwnedRow/OwnedTitleVBox"]
+layout_mode = 2
+text = "行囊"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 15
+theme_override_colors/font_color = Color(1.0, 0.78, 0.30, 1)
+
+[node name="OwnedCountLabel" type="Label" parent="VBox/OwnedDock/OwnedRow/OwnedTitleVBox"]
+layout_mode = 2
+text = "0件"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 11
 theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
 
-[node name="ShopScroll" type="ScrollContainer" parent="VBox"]
-layout_mode = 2
-custom_minimum_size = Vector2(0, 220)
-size_flags_vertical = 3
-horizontal_scroll_mode = 0
-
-[node name="ShopGrid" type="GridContainer" parent="VBox/ShopScroll"]
+[node name="OwnedPanel" type="GridContainer" parent="VBox/OwnedDock/OwnedRow"]
 layout_mode = 2
 size_flags_horizontal = 3
-columns = 2
-theme_override_constants/h_separation = 10
-theme_override_constants/v_separation = 10
+columns = 3
+theme_override_constants/h_separation = 8
+theme_override_constants/v_separation = 6
 
-[node name="Divider2" type="HSeparator" parent="VBox"]
+[node name="GuideArea" type="PanelContainer" parent="VBox"]
 layout_mode = 2
+custom_minimum_size = Vector2(0, 200)
+size_flags_vertical = 3
 
-[node name="OwnedLabel" type="Label" parent="VBox"]
+[node name="GuideRow" type="HBoxContainer" parent="VBox/GuideArea"]
 layout_mode = 2
-text = "已持有道具"
-theme_override_font_sizes/font_size = 13
-theme_override_colors/font_color = Color(0.72, 0.64, 0.58, 1)
+theme_override_constants/separation = 4
 
-[node name="OwnedScroll" type="ScrollContainer" parent="VBox"]
+[node name="GuideBubble" type="PanelContainer" parent="VBox/GuideArea/GuideRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 86)
-horizontal_scroll_mode = 1
-vertical_scroll_mode = 0
+size_flags_horizontal = 3
 
-[node name="OwnedPanel" type="HBoxContainer" parent="VBox/OwnedScroll"]
+[node name="GuideVBox" type="VBoxContainer" parent="VBox/GuideArea/GuideRow/GuideBubble"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 94)
-theme_override_constants/separation = 8
+theme_override_constants/separation = 3
+
+[node name="GuideName" type="Label" parent="VBox/GuideArea/GuideRow/GuideBubble/GuideVBox"]
+layout_mode = 2
+text = "土地公"
+theme_override_font_sizes/font_size = 18
+theme_override_colors/font_color = Color(0.48, 0.22, 0.07, 1)
+
+[node name="GuideText" type="Label" parent="VBox/GuideArea/GuideRow/GuideBubble/GuideVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "小仙友，点点货架上的宝贝，老朽给你讲讲门道。"
+vertical_alignment = 1
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 15
+theme_override_constants/line_spacing = 3
+theme_override_colors/font_color = Color(0.24, 0.12, 0.06, 1)
+
+[node name="GuideActionButton" type="Button" parent="VBox/GuideArea/GuideRow/GuideBubble/GuideVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 38)
+text = "先看看货架"
+disabled = true
+theme_override_font_sizes/font_size = 15
+
+[node name="GuideSellButton" type="Button" parent="VBox/GuideArea/GuideRow/GuideBubble/GuideVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 34)
+text = "出售"
+visible = false
+theme_override_font_sizes/font_size = 14
+
+[node name="LandGodPortrait" type="TextureRect" parent="VBox/GuideArea/GuideRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(150, 150)
+texture = ExtResource("3")
+expand_mode = 1
+stretch_mode = 5
+mouse_filter = 2
 
 [node name="BottomRow" type="HBoxContainer" parent="VBox"]
 layout_mode = 2
-custom_minimum_size = Vector2(0, 48)
+custom_minimum_size = Vector2(0, 50)
 alignment = 1
-theme_override_constants/separation = 12
+theme_override_constants/separation = 8
 
 [node name="RefreshButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(136, 48)
-text = "🔄  刷新"
-theme_override_font_sizes/font_size = 16
+custom_minimum_size = Vector2(126, 48)
+text = "刷新货架"
+theme_override_font_sizes/font_size = 14
 
 [node name="ContinueButton" type="Button" parent="VBox/BottomRow"]
 layout_mode = 2
-custom_minimum_size = Vector2(250, 48)
+custom_minimum_size = Vector2(240, 48)
 size_flags_horizontal = 3
-text = "⚡ 带上神装继续爆杀  ▶"
-theme_override_font_sizes/font_size = 16
+text = "带上宝贝继续降妖  ▶"
+theme_override_font_sizes/font_size = 14
 
 [node name="PurchaseToast" type="Label" parent="."]
 layout_mode = 1
-anchor_left = 0.1
-anchor_top = 0.42
-anchor_right = 0.9
-anchor_bottom = 0.53
-text = "✨ 天命宝物入手！"
+anchor_left = 0.08
+anchor_top = 0.38
+anchor_right = 0.92
+anchor_bottom = 0.49
+text = "天命宝物入手！"
 horizontal_alignment = 1
 vertical_alignment = 1
-theme_override_font_sizes/font_size = 27
+theme_override_font_sizes/font_size = 25
 theme_override_colors/font_color = Color(1, 0.88, 0.25, 1)
-theme_override_colors/font_outline_color = Color(0.02, 0.08, 0.28, 1)
+theme_override_colors/font_outline_color = Color(0.12, 0.03, 0.01, 1)
 theme_override_constants/outline_size = 9
 visible = false
 mouse_filter = 2

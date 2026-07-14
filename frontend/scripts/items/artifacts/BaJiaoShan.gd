@@ -1,5 +1,5 @@
-# JinGuBang.gd — 金箍棒：+倍率（稳定增伤）
-# 原著灵感：悟空的如意金箍棒，重一万三千五百斤，可大可小
+# BaJiaoShan.gd — 芭蕉扇：+倍率（稳定增伤）
+# 原著灵感：铁扇公主持有的芭蕉扇，可扇出罡风、熄灭火焰山烈火
 # 对应 Balatro: Banner / Steel Joker
 # Level 1: +4倍率  Level 2: +7倍率  Level 3: +11倍率
 extends "res://scripts/items/ItemEffect.gd"

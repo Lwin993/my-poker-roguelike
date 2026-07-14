@@ -98,7 +98,7 @@ sequenceDiagram
 | 小盲（Small Blind） | 小兵（Minion） | 每轮第1回合，巡山小妖 |
 | 大盲（Big Blind） | 精英怪（Elite） | 每轮第2回合，精英妖怪 |
 | Boss | 大妖（Boss Demon） | 每轮第3回合，如白骨精、黄风怪等 |
-| 小丑牌（Joker） | 法宝（Artifact） | 如金箍棒、紫金铃、芭蕉扇等 |
+| 小丑牌（Joker） | 法宝（Artifact） | 如芭蕉扇、紫金铃、人参果等 |
 | 冲分道具（Consumable） | 仙丹/法术（Elixir） | 如九转还丹、定风丹、分身术等 |
 | 游戏积分（Game Coins） | 灵石（Spirit Stones） | 局内货币，购买法宝/仙丹 |
 | 通过分数（Threshold） | 怪物血条（HP Bar） | 需造成的伤害总量 |
@@ -120,7 +120,7 @@ sequenceDiagram
 > | 通信方式 | HTTP REST (JSON)，后续可升级 WebSocket |
 > | 鉴权 | Bearer JWT Token，请求头 `Authorization` |
 > | 牌数据序列化 | `{"r": 1, "s": 0}` → r=rank(1-13), s=suit(0-3) |
-> | 法宝 ID 对齐 | 前后端使用同一套 `item_id` 字符串（如 `artifact_jgb` 金箍棒） |
+> | 法宝 ID 对齐 | 前后端使用同一套 `item_id` 字符串（如 `artifact_bjs` 芭蕉扇） |
 > | 伤害快照 | 前端提交 `snapshot` 字段，后端独立校验 |
 >
 > 详细的接口协议见第2章。
@@ -190,19 +190,19 @@ sequenceDiagram
         "item_config": {
             "items": [
                 {
-                    "id": "artifact_jgb",
-                    "display_name": "金箍棒",
-                    "description": "暴击率+10%，神通倍率+0.5",
+                    "id": "artifact_bjs",
+                    "display_name": "芭蕉扇",
+                    "description": "每次出牌掀起罡风，固定增加倍率",
                     "price": 30,
                     "rarity": 0,
                     "item_type": 0,
                     "shop_weights": [30,25,20,15,10,5],
                     "upgrade_costs": [40,80],
-                    "effect_class": "ArtifactJGB",
+                    "effect_class": "BaJiaoShan",
                     "level_params": [
-                        {"crit_rate_add":0.10,"crit_mult_add":0.5},
-                        {"crit_rate_add":0.18,"crit_mult_add":1.0},
-                        {"crit_rate_add":0.25,"crit_mult_add":1.5}
+                        {"mult_add":4},
+                        {"mult_add":7},
+                        {"mult_add":11}
                     ]
                 }
             ]
@@ -323,7 +323,7 @@ sequenceDiagram
 {
     "session_id": 10001,
     "shop_node": 0,
-    "item_id": "artifact_jgb",
+    "item_id": "artifact_bjs",
     "slot_index": 0
 }
 ```
@@ -380,7 +380,7 @@ sequenceDiagram
 
 | 概念 | Java 字段 | JSON 协议字段 | 说明 |
 |------|-----------|--------------|------|
-| 法宝/仙丹 ID | `ItemDTO.id` | `id` | 完全一致，如 `artifact_jgb` |
+| 法宝/仙丹 ID | `ItemDTO.id` | `id` | 完全一致，如 `artifact_bjs` |
 | 道具类型 | `ItemDTO.itemType` | `item_type` | 0=法宝 1=仙丹 |
 | 稀有度 | `ItemDTO.rarity` | `rarity` | 0=普通 1=稀有 |
 | 商店权重 | `ItemDTO.shopWeights` | `shop_weights` | 6节点权重数组 |
@@ -1155,16 +1155,16 @@ INSERT OR IGNORE INTO reward_tier (min_damage, max_damage, reward_name, reward_t
 
 -- 法宝配置（原小丑牌）
 INSERT OR IGNORE INTO item_config (item_id, config_data) VALUES
-('artifact_jgb', '{
-    "display_name":"金箍棒","description":"暴击率+10%，神通倍率+0.5",
+('artifact_bjs', '{
+    "display_name":"芭蕉扇","description":"每次出牌掀起罡风，固定增加倍率",
     "price":30,"rarity":0,"item_type":0,
     "shop_weights":[30,25,20,15,10,5],
     "upgrade_costs":[40,80],
-    "effect_class":"ArtifactJGB",
+    "effect_class":"BaJiaoShan",
     "level_params":[
-        {"crit_rate_add":0.10,"crit_mult_add":0.5},
-        {"crit_rate_add":0.18,"crit_mult_add":1.0},
-        {"crit_rate_add":0.25,"crit_mult_add":1.5}
+        {"mult_add":4},
+        {"mult_add":7},
+        {"mult_add":11}
     ]
 }'),
 ('artifact_zjl', '{
@@ -1179,12 +1179,12 @@ INSERT OR IGNORE INTO item_config (item_id, config_data) VALUES
         {"chain_mult":0.40}
     ]
 }'),
-('artifact_bjs', '{
-    "display_name":"芭蕉扇","description":"低概率伤害额外×10",
+('artifact_rsg', '{
+    "display_name":"人参果","description":"低概率触发极高特殊倍率",
     "price":50,"rarity":0,"item_type":0,
     "shop_weights":[15,12,15,18,15,10],
     "upgrade_costs":[60,120],
-    "effect_class":"ArtifactBJS",
+    "effect_class":"RenShenGuo",
     "level_params":[
         {"boom_prob":0.03,"boom_mult":10.0},
         {"boom_prob":0.05,"boom_mult":15.0},
@@ -1263,9 +1263,9 @@ INSERT OR IGNORE INTO item_config (item_id, config_data) VALUES
 >
 > | 法宝/仙丹 | 原著灵感 | 设计思路 |
 > |-----------|----------|----------|
-> | 金箍棒 | 孙悟空的如意金箍棒，可大可小 | 暴击率高=威力大，神通倍率=金箍棒变大增伤 |
+> | 芭蕉扇 | 铁扇公主的宝扇，可扇出罡风、熄灭火焰山烈火 | 固定倍率=每次出牌都有罡风助势 |
 > | 紫金铃 | 太上老君的紫金铃铛，摇动出火/烟/沙 | 连锁同牌型=铃声回荡不断 |
-> | 芭蕉扇 | 铁扇公主的芭蕉扇，一扇灭火 | 低概率大伤害=一扇之力，威力惊人 |
+> | 人参果 | 五庄观人参果，三千年一熟 | 低概率大伤害=稀世仙果爆发惊人 |
 > | 九转金丹 | 太上老君炼制的仙丹 | 增加神通率=服用后功力大增 |
 > | 分身术 | 孙悟空拔毫毛变分身 | 倍率翻倍=分身一起攻击 |
 > | 降妖符 | 道家降妖之术 | 大妖关卡倍率×3=专门克制大妖 |
@@ -1713,9 +1713,9 @@ Controller → Service → Mapper / Infrastructure
 
 | 法宝 | Level 1 | Level 2 | Level 3 | 升级价1→2 | 升级价2→3 |
 |------|---------|---------|---------|-----------|-----------|
-| 金箍棒 | 神通率+10%，神通倍率+0.5 | 神通率+18%，神通倍率+1.0 | 神通率+25%，神通倍率+1.5 | 40 | 80 |
+| 芭蕉扇 | +4倍率 | +7倍率 | +11倍率 | 40 | 80 |
 | 紫金铃 | 连续同牌型每次+0.15倍率 | 连续同牌型每次+0.25倍率 | 连续同牌型每次+0.40倍率 | 50 | 100 |
-| 芭蕉扇 | 3%概率×10 | 5%概率×15 | 8%概率×20 | 60 | 120 |
+| 人参果 | 3%概率×10 | 5%概率×15 | 8%概率×20 | 60 | 120 |
 
 ### C. 仙丹价格总表
 
