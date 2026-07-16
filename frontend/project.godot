@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="快游记"
-config/description="西游记主题扑克 Roguelike — 降妖除魔，爽感拉满"
+config/name="牌打西游"
+config/description="扑克 × 西游记 Roguelike — 降妖除魔，爽感拉满"
 config/version="1.0.0"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")

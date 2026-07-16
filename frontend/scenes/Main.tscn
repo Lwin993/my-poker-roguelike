@@ -53,9 +53,9 @@ theme_override_constants/outline_size = 5
 
 [node name="Title" type="Label" parent="MainMenu/Center/VBox"]
 layout_mode = 2
-text = "快 游 记"
+text = "牌 打 西 游"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 50
+theme_override_font_sizes/font_size = 62
 theme_override_colors/font_color = Color(1, 0.83, 0.18, 1)
 theme_override_colors/font_outline_color = Color(0.5, 0.02, 0.24, 1)
 theme_override_constants/outline_size = 10
