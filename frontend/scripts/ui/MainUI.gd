@@ -20,6 +20,8 @@ var _result_ui     = null
 var _rank_ui       = null
 
 func _ready():
+	# 启动后默认播放主菜单背景音乐
+	MusicManager.play_menu_music()
 	# 连接相位切换信号
 	RoundManager.phase_changed.connect(_on_phase_changed)
 
@@ -123,20 +125,25 @@ func _on_rank_pressed():
 func _on_phase_changed(new_phase: int):
 	match new_phase:
 		RoundManager.Phase.PLAYING, RoundManager.Phase.ROUND_START:
+			MusicManager.play_current_battle_music()
 			_show_panel(game_board)
 		RoundManager.Phase.ROUND_END:
+			# 战斗结算页延续当前阶段音乐，避免刚打完就切断情绪。
 			_show_panel(battle_settlement)
 			if _battle_settlement_ui and _battle_settlement_ui.has_method("show_settlement"):
 				_battle_settlement_ui.show_settlement()
 		RoundManager.Phase.SHOP:
+			# 商店页延续上一场音乐，下一阶段开战时再切换。
 			_show_panel(shop_node)
 			if _shop_ui and _shop_ui.has_method("refresh_shop"):
 				_shop_ui.refresh_shop()
 		RoundManager.Phase.FINAL_RESULT:
+			MusicManager.play_menu_music()
 			_show_panel(result_screen)
 			if _result_ui and _result_ui.has_method("show_result"):
 				_result_ui.show_result()
 		RoundManager.Phase.MAIN_MENU:
+			MusicManager.play_menu_music()
 			_show_panel(main_menu)
 			GameAPI.get_wallet_balance()
 			_update_start_button()

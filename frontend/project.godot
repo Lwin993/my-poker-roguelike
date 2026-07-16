@@ -30,6 +30,7 @@ JSBridge="*res://scripts/net/JSBridge.gd"
 GameAPI="*res://scripts/net/GameAPI.gd"
 GameTheme="*res://scripts/core/GameTheme.gd"
 BossSkillManager="*res://scripts/core/BossSkillManager.gd"
+MusicManager="*res://scripts/core/MusicManager.gd"
 
 [configuration]
 
